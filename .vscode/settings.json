@@ -1,0 +1,10 @@
+{
+    "editor.detectIndentation": true,
+    "editor.insertSpaces": false,
+    "editor.tabSize": 2,
+    "files.associations": {
+        "fslow.h": "c",
+        "mfs.h": "c",
+        "string.h": "c"
+    },
+}
