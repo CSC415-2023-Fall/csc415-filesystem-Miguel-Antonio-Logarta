@@ -86,6 +86,9 @@ typedef struct directory_entry_s {
   time_t last_modified; // 8 bytes
 } directory_entry;
 
+// Unitialized global variables that store our state
+extern VCB* g_vcb;
+
 int createPartition(char *filename, uint64_t *volSize, uint64_t *blockSize);
 
 int startPartitionSystem(char *filename, uint64_t *volSize,
@@ -105,6 +108,8 @@ uint64_t LBAwrite(void *buffer, uint64_t lbaCount, uint64_t lbaPosition);
 uint64_t LBAread(void *buffer, uint64_t lbaCount, uint64_t lbaPosition);
 
 void runFSLowTest(); // Do not use this, for testing only
+
+VCB* getVCB();
 
 #define MINBLOCKSIZE 512
 #define PART_SIGNATURE 0x526F626572742042
