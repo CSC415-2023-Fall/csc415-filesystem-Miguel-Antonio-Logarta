@@ -20,9 +20,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include "b_io.h"
+#include "fsLow.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
+ 
 
 typedef struct b_fcb
 	{
@@ -53,19 +55,37 @@ b_io_fd b_getFCB ()
 	{
 	for (int i = 0; i < MAXFCBS; i++)
 		{
-		if (fcbArray[i].buff == NULL)
+		if (fcbArray[i].buf == NULL)
 			{
 			return i;		//Not thread safe (But do not worry about it for this assignment)
 			}
 		}
 	return (-1);  //all in use
 	}
+
+
+
+struct directory_entry_s *getDE(char* path){
+	char *token;
+   
+   /* get the first token */
+   char* firstTok =  strtok(path, "/");
+   token = firstTok;
+   /* walk through other tokens */
+   while( token != NULL ) {
+		//printf( " %s\n", token );
+		token = strtok(NULL, "/");
+		if (token != NULL){
+			
+		}
+   }
+}
 	
 // Interface to open a buffered file
 // Modification of interface for this assignment, flags match the Linux flags for open
 // O_RDONLY, O_WRONLY, or O_RDWR
 b_io_fd b_open (char * filename, int flags)
-	{
+{
 	b_io_fd returnFd;
 
 	//*** TODO ***:  Modify to save or set any information needed
@@ -77,8 +97,18 @@ b_io_fd b_open (char * filename, int flags)
 	returnFd = b_getFCB();				// get our own file descriptor
 										// check for error - all used FCB's
 	
+    b_io_fd fd = b_getFCB();
+    if (fd == -1) {
+        return -1;
+    }
+
+    fcbArray[fd].buf = (char *)malloc(B_CHUNK_SIZE); // Allocate a buffer for this file
+    if (fcbArray[fd].buf == NULL) {
+        return -1;
+    }
+	
 	return (returnFd);						// all set
-	}
+}
 
 
 // Interface to seek function	
