@@ -24,9 +24,18 @@
 #include "fsLow.h"  // VCB defined here
 #include "mfs.h"
 
-#include "fsDebug.h"
+// #include "fsDebug.h"
+
+// Keep VCB in memory
+VCB* g_vcb = NULL;
 
 int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
+  0x4B4C;
+  /*
+    TODO:
+      - Add a check to see if blockSize is a power of 2
+      - Instead of writing the root directory, use b_write() instead
+  */
   printf("Initializing File System with %ld blocks with a block size of %ld\n",
          numberOfBlocks, blockSize);
   unsigned char* buffer;
@@ -90,18 +99,18 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   vcb->FAT_length = blocksNeeded;
 
   // Initialize FAT blocks
-  //for (int i = 0; i < blocksNeeded*blockSize; i++) {
-  //  FATTable[i].in_use = 0;
-  //  FATTable[i].end_of_file = 0;
-  //  FATTable[i].next_lba_block = 0;
-  //}
+  for (int i = 0; i < blocksNeeded*blockSize; i++) {
+    FATTable[i].in_use = 0;
+    FATTable[i].end_of_file = 0;
+    FATTable[i].next_lba_block = 0;
+  }
 
   // Debugging purposes
-   for (int i = 0; i < blocksNeeded*blockSize; i++) {
-     FATTable[i].in_use = 1;
-     FATTable[i].end_of_file = 0;
-     FATTable[i].next_lba_block = 0;
-   }
+  // for (int i = 0; i < blocksNeeded*blockSize; i++) {
+  //   FATTable[i].in_use = 1;
+  //   FATTable[i].end_of_file = 0;
+  //   FATTable[i].next_lba_block = 0;
+  // }
   // 0x013600;
   // 0x013800;
   
@@ -171,6 +180,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
     return PART_ERR_INVALID;
   }
 
+<<<<<<< HEAD
   free(buffer);
   free(FATTable);
   free(DEBuffer);
@@ -179,3 +189,59 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
 }
 
 void exitFileSystem() { printf("System exiting\n"); }
+=======
+  // printf("Debuuuuuuuuuuuuuuuuggggggggggg\n");
+  // Copy VCB to g_vcb to keep it in memory
+  // memcpy(g_vcb, vcb, sizeof(VCB));
+  // *g_vcb = *vcb;
+  // printf("This is our global VCB in memory: %ld\n", g_vcb->DE_start);
+
+  free(buffer);
+  free(FATTable);
+  free(DEBuffer);
+
+  return 0;
+}
+
+void exitFileSystem() { printf("System exiting\n"); }
+
+VCB* getVCB() {
+  // Returns the volume control block.
+
+  // Check if initialized
+  // if (g_vcb != NULL && force == 0) {
+  //   printf("VCB is not null\n");
+  //   return g_vcb;
+  // } else {
+  //   printf("malloc buffer for vcb\n");
+  //   g_vcb = (VCB*)malloc(sizeof(VCB));
+  //   unsigned char* buffer = malloc(MINBLOCKSIZE);
+  //   int blocksRead = LBAread(buffer, 1, 0);
+  //   if (blocksRead < 1) {
+  //     printf("There was an error reading the VCB\n");
+  //     free(buffer);
+  //     return NULL;
+  //   } else {
+  //     printf("Successfully loaded VCB\n");
+  //     g_vcb = (VCB*)buffer;
+  //     free(buffer);
+  //     return g_vcb;
+  //   }
+  // }
+
+  // Return an instance of VCB. The user has to free it themselves
+  g_vcb = (VCB*)malloc(sizeof(VCB));
+  unsigned char* buffer = malloc(MINBLOCKSIZE);
+  int blocksRead = LBAread(buffer, 1, 0);
+  if (blocksRead < 1) {
+    printf("There was an error reading the VCB\n");
+    free(buffer);
+    return NULL;
+  } else {
+    printf("Successfully loaded VCB\n");
+    g_vcb = (VCB*)buffer;
+    free(buffer);
+    return g_vcb;
+  }
+}
+>>>>>>> origin/Miguel

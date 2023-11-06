@@ -811,39 +811,48 @@ int main (int argc, char * argv[])
         printf ("|---------------------------------|\n");
 
 	
-	while (1)
+	// Set cwd to root
+	printf("Setting cwd to root\n");
+	int cwd_return = fs_setcwd("/");
+	if (cwd_return != 0) {
+		printf("Unable to find root directory!\n");
+	} else {
+		while (1)
 		{
-		cmdin = readline("Prompt > ");
+			cmdin = readline("Prompt > ");
 #ifdef COMMAND_DEBUG
-		printf ("%s\n", cmdin);
+			printf ("%s\n", cmdin);
 #endif
-		
-		cmd = malloc (strlen(cmdin) + 30);
-		strcpy (cmd, cmdin);
-		free (cmdin);
-		cmdin = NULL;
-		
-		if (strcmp (cmd, "exit") == 0)
-			{
-			free (cmd);
-			cmd = NULL;
-			exitFileSystem();
-			closePartitionSystem();
-			// exit while loop and terminate shell
-			break;
-			}
 			
-		if ((cmd != NULL) && (strlen(cmd) > 0))
-			{
-			he = history_get(history_length);
-			if (!((he != NULL) && (strcmp(he->line, cmd)==0)))
+			cmd = malloc (strlen(cmdin) + 30);
+			strcpy (cmd, cmdin);
+			free (cmdin);
+			cmdin = NULL;
+			
+			if (strcmp (cmd, "exit") == 0)
 				{
-				add_history(cmd);
+				free (cmd);
+				cmd = NULL;
+				exitFileSystem();
+				closePartitionSystem();
+				// exit while loop and terminate shell
+				break;
 				}
-			processcommand (cmd);
-			}
 				
-		free (cmd);
-		cmd = NULL;		
+			if ((cmd != NULL) && (strlen(cmd) > 0))
+				{
+				he = history_get(history_length);
+				if (!((he != NULL) && (strcmp(he->line, cmd)==0)))
+					{
+					add_history(cmd);
+					}
+				processcommand (cmd);
+				}
+					
+			free (cmd);
+			cmd = NULL;		
 		} // end while
+
 	}
+
+}
