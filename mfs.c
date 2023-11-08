@@ -24,102 +24,243 @@ fdDir* g_fs_cwd = NULL;
 int fs_mkdir(const char *pathname, mode_t mode);
 int fs_rmdir(const char *pathname);
 
+// Test for multiple inputs and conditions
+// relative/path/to/file.txt
+// ./dot/notation/to/indicate/current/path.c
+// ../double/dot/to/go/up/to/parents
+// /root/slash/to/indicate/absolute path
+// /root/slash/../slash/to
+// /root/slash/./to
 fdDir * fs_opendir(const char *pathname) {
 	/*
 		We receive an absolute path from pathname, perform a DFS search to find the directory,
 		then we return a pointer to that directory
 	*/
 
-  // TODO: tokenize the pathname with "/"
+  // TODO: Move "checking if pathname is valid" in a different function
+  // If pathname starts with "/", absolutePath = true
+  // Else, it is a relative path.
 
-  // Open VCB to get root dir
-  // printf("fs_open called\n");
-  VCB* fs_vcb = getVCB();
-  printf("%ld\n", fs_vcb->DE_start);
-
-  // TODO: We're going to need to use b_read() to get the directory
-  // because what if the root directory spans more than 1 block?
-  // printf("length, %ld, block size %ld = %ld\n", fs_vcb->DE_length, fs_vcb->block_size, fs_vcb->DE_length*fs_vcb->block_size);
-  // unsigned char* buffer = malloc(fs_vcb->DE_length*fs_vcb->block_size);
-
-  // Have a buffer with some extra available bits to prevent heap overflow
-  unsigned char* buffer = malloc(fs_vcb->DE_length*fs_vcb->block_size+MINBLOCKSIZE);
-  if (buffer == NULL) {
-    printf("Couldn't allocate buffer");
+  if (pathname == NULL) {
+    printf("Pathname is NULL\n");
     return NULL;
   }
 
-  printf("Malloced buffer %d\n", fs_vcb->DE_length*fs_vcb->block_size);
-  printf("Length before %ld, start offset: %ld\n", fs_vcb->DE_length, fs_vcb->DE_start);
+  if (strlen(pathname) + 1 > MAX_PATH) {
+    printf("Pathname exceeds MAX_PATH\n");
+    return NULL;
+  }
 
-  // memcpy(DE_blocksToRead, fs_vcb->DE_length, sizeof(uint64_t));
-  // memcpy(DE_start, fs_vcb->DE_start, sizeof(uint64_t));
-  // printf("Length before %ld, start offset: %ld\n", DE_blocksToRead, DE_start);
-  // LBAread is changing the values of fs_vcb for some reason, I'm going to make a copy of teh variables instead
-  
-  printVCB(fs_vcb);
-  // int blocksRead = 0;
+  // Variables for path parsing
+  unsigned int absolutePath;
+  char* path;
+  char* token;
+  char* lastToken;
 
-  // There has to be some memory corruption going on. LBA read is probably overwriting some bits in memory
-  
-  // LBAread right here, right down here you see, arggghhh. If you give it a buffer of exactly 512 bytes, it will
-  // run over and start writing to other parts of memory it shouldn't even be touching.
-  // int blocksRead = LBAread(buffer, 1, 154); // <- this function is evil ;-;. It's changing the variables inside fs_vcb and I don't know how it's doing that
-  // int blocksRead = LBAread(buffer, fs_vcb->DE_length, 154);
-  // What the? Why does fs_vcb->DE_start change even though we don't pass it to lba read?
-  // The name of the vcb doesn't matter. It maybe has to do something with the buffer
-  printVCB(fs_vcb);
-  int blocksRead = 0;
-  printf("Blocks read: %ld < %ld?\n", blocksRead, fs_vcb->DE_length);
-  printf("Length after %ld, start offset: %ld\n", fs_vcb->DE_length, fs_vcb->DE_start);
-  // if (blocksRead < fs_vcb->DE_length) {
+  // Variables to read file directories
+  VCB* fsVCB;
+  unsigned char* buffer;
+  int blocksRead;
+  directory_entry* currDir;
+
+  // Copy pathname
+  path = (char*)malloc(MAX_PATH*sizeof(char));
+  strncpy(path, pathname, MAX_PATH);
+
+  // Check if pathname is absolute or relative path
+  if (path[0] == '/') {
+    absolutePath = 1;
+  } else {
+    absolutePath = 0;
+  }
+
+  // Read VCB and root directory
+  fsVCB = getVCB();
+  if (fsVCB == NULL) {
+    printf("There was an error allocating the VCB\n");
+    return NULL;
+  }
+
+  if (absolutePath == 1) {
+    // Absolute directory, set starting dir to root directory
+    // TODO: Load entire root directory to buffer using b_read
+    buffer = malloc(fsVCB->DE_length*fsVCB->block_size);
+    blocksRead = LBAread(buffer, fsVCB->DE_length, fsVCB->DE_start);
+    memcpy(currDir, buffer, sizeof(directory_entry));
+  } else {
+    // Relative directory, set starting dir to current working directory
+    if (g_fs_cwd == NULL) {
+      printf("Current working directory has not been initialized yet!\n");
+      return NULL;
+    }
+
+    buffer = malloc(g_fs_cwd->directory->file_size);
+    // TODO: Check if LBAread can handle a buffer that is smaller than 512 bytes
+    blocksRead = LBAread(buffer, fsVCB->DE_length, fsVCB->DE_start);
+    memcpy(currDir, buffer, sizeof(directory_entry));
+  }
+
+  token = strtok(path, "/");
+  while (token != NULL) {
+    printf("Current folder: %s\n", currDir->name);
+    lastToken = token;
+
+    // Read each directory entry inside the current directory
+    for (int i = sizeof(directory_entry); i < currDir->file_size; i += sizeof(directory_entry)) {
+      directory_entry* subfolder = (directory_entry*)malloc(sizeof(directory_entry));
+      memcpy(subfolder, buffer + i, sizeof(directory_entry));
+
+      if (subfolder->is_directory == 0) {
+        if (strcmp(subfolder->name, token) == 0) {
+          // Match found, set current folder to subfolder
+          realloc(buffer, subfolder->file_size);
+          blocksRead = LBAread(buffer, 1, subfolder->block_location);
+          memcpy(currDir, buffer, sizeof(directory_entry));
+        }
+      }
+    }
+
+    token = strtok(NULL, "/");
+  }
+
+  printf("Last folder: %s\n", lastToken);
+
+  /*
+    If absolute path, set current folder to root
+    else, set current folder to cwd
+
+    For each token
+      Loop through each subfolder of the current folder
+      If subfolder matches token
+        set current folder to subfolder
+        break
+      else
+        go to next loop
+    
+    After the for loop
+    If the last token did not match the subfolder, there were no matches
+      return NULL for we did not find any matching subfolder
+    Else
+      return last subfolder
+  */
+
+  // buffer = malloc(fsVCB->DE_length*fsVCB->block_size);
+  // if (buffer == NULL) {
+  //   printf("Couldn't allocate buffer\n");
+  //   return NULL;
+  // }
+
+  // blocksRead = LBAread(buffer, fsVCB->DE_length, fsVCB->DE_start);
+  // if (blocksRead < fsVCB->DE_length) {
   //   printf("There is an error getting the Root directory\n");
   //   return NULL;
   // }
 
-  // printf("Malloced used LBA read\n");
-
-  // Right now, we know that our root dir is only one block large, however, this will fail
-  // once we start putting more directories and files inside root dir.
-  // printf("root dir length %d then size %ld\n", fs_vcb->DE_length, fs_vcb->DE_length*sizeof(directory_entry));
-
-  // There is an issue down here
-  // directory_entry *rootDir = (directory_entry*)malloc(3*sizeof(directory_entry));
-  // directory_entry * rootDir;
-  // rootDir = (directory_entry*)malloc(sizeof(directory_entry));
-  
-  // printf("Malloced Root dir\n");
-
-  // memcpy(rootDir, buffer, fs_vcb->DE_length*sizeof(directory_entry));
-  
-  // Read the directory entry, check if it is a file or a folder
-  // We are going to scroll through the buffer 64 bytes at a time,
-  // for (int i = 0; i < fs_vcb->DE_length*fs_vcb->block_size; i += sizeof(directory_entry)) {
-  //   directory_entry* currDir = (directory_entry*)malloc(sizeof(directory_entry));
-  //   memcpy(currDir, buffer + i, sizeof(directory_entry));
-  //   printf("currdir: %s\n", currDir->name);
-  //   free(currDir);
+  // currDir = (directory_entry*)malloc(sizeof(directory_entry));
+  // if (currDir == NULL) {
+  //   printf("Couldn't malloc memory for currDir\n");
+  //   return NULL;
   // }
 
-  // Now because of lbaread, it's permanently messed up
-  // fs_vcb = getVCB();
-  printVCB(fs_vcb);
-  
-  // printf("curr dirrrrrrr: %s\n", rootDir[0].name);
-  // int bytesRemaining = 0;
-  // while (bytesRead < )
-  // // for (int i = 0; i < fs_vcb->block_size; i += sizeof())
-  // if (strcmp(rootDir[0].name, pathname) == 0) {
-  //   printf("Pathname matches, directory found\n");
+  // if (absolutePath == 1) {
+  //   // Absolute directory, set starting dir to root directory
+  //   memcpy(currDir, buffer, sizeof(directory_entry));
+  // } else {
+  //   // Relative directory, set starting dir to current working directory
+  //   if (g_fs_cwd == NULL) {
+  //     printf("Current working directory has not been initialized yet!\n");
+  //     return NULL;
+  //   }
+  //   memcpy(currDir, g_fs_cwd->directory, sizeof(directory_entry));
   // }
 
-  // Traverse root dir until we find path
+  // Perform a DFS search to find directory
 
-  // fdDir* newDir = (fdDir*)malloc(sizeof(fdDir));
-  // return newDir;
-  free(buffer);
+  // DFS handles from root only
+  // Algorithm
+  // Current directory
+  // Copy contents of current directory to buffer
+  // Go through child nodes by iterating through this buffer
+  /*
+    For each child node:
+      if child node's name matches current token  
+        if child node is a folder
+          set current directory to child
+        else
+          return NULL since it is a file
+      go to next child
 
+    If for loop finishes, and no matching children were found, return NULL since no folders were found
+
+  When tokens are empty, check the last current directory
+  If the last current directory matches last token, return last current directory
+  */ 
+   
+  // token = strtok(path, "/");
+  // while (token != NULL) {
+  //   printf("Current Folder: %s\n", token);
+
+  //   // Load contents of directory into buffer
+  //   realloc(buffer, currDir->file_size*sizeof(unsigned char));
+  //   if (buffer == NULL) {
+  //     printf("Couldn't reallocate buffer\n");
+  //     return NULL;
+  //   }
+    
+  //   // TODO: This is going to have to be replaced by b_read, because this can only handle one block instead of multiple
+  //   blocksRead = LBAread(buffer, 1, currDir->block_location);
+  //   if (blocksRead < fsVCB->DE_length) {
+  //     printf("There is an error getting the Root directory\n");
+  //     return NULL;
+  //   }
+
+  //   // Loop through the children of the buffer
+  //   // Search children of current directory
+  //   for (int i = 0; i < currDir->file_size; i += sizeof(directory_entry)) {
+  //     directory_entry* currDir = (directory_entry*)malloc(sizeof(directory_entry));
+  //     if (currDir == NULL) {
+  //       printf("Couldn't malloc memory for current directory");
+  //       return NULL;
+  //     }
+
+  //     memcpy(currDir, startDir + i, sizeof(directory_entry));
+
+  //     if (strcmp(currDir->name, token) == 0) {
+  //       if (currDir->is_directory == 0) {
+  //         printf("Pathname contains a filename instead of a valid directory\n");
+  //         // TODO: Make sure to free everything before exiting this function
+  //         return NULL;
+  //       }
+
+  //       // Enter subfolder
+  //       printf("Directory found! Ptr address: %ld\n", currDir->block_location);
+  //       startDir = currDir;
+  //     }
+
+  //     free(currDir);
+  //     printf("Current subfolder/file: %s", currDir->name);
+  //   }
+
+
+  //   for (int i = 0; i < startDir->file_size; i += sizeof(directory_entry)) {
+  //   //   directory_entry* currDir = (directory_entry*)malloc(sizeof(directory_entry));
+  //   //   memcpy(currDir, buffer + i, sizeof(directory_entry));
+
+  //   //   printf("currdir: %s\n", currDir->name);
+
+  //   //   if (strcmp(currDir->name, pathname) == 0) {
+  //   //     printf("Directory found! Ptr address: %ld\n", currDir->block_location);
+  //   //   }
+
+  //   //   free(currDir);
+  //   // }
+
+  //   token = strtok(NULL, "/");
+  // }
+
+  // free(path);
   return NULL;
+
 }
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp);
@@ -160,3 +301,7 @@ int fs_isDir(char * pathname);		//return 1 if directory, 0 otherwise
 int fs_delete(char* filename);	//removes a file
 
 int fs_stat(const char *path, struct fs_stat *buf);
+
+int writeTestFiles() {
+  
+}

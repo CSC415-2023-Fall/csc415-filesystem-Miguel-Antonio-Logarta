@@ -30,7 +30,6 @@
 VCB* g_vcb = NULL;
 
 int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
-  0x4B4C;
   /*
     TODO:
       - Add a check to see if blockSize is a power of 2
@@ -220,7 +219,8 @@ VCB* getVCB() {
   // }
 
   // Return an instance of VCB. The user has to free it themselves
-  g_vcb = (VCB*)malloc(sizeof(VCB));
+  // g_vcb = (VCB*)malloc(sizeof(VCB));
+  VCB* vcb = (VCB*)malloc(sizeof(VCB));
   unsigned char* buffer = malloc(MINBLOCKSIZE);
   int blocksRead = LBAread(buffer, 1, 0);
   if (blocksRead < 1) {
@@ -229,8 +229,20 @@ VCB* getVCB() {
     return NULL;
   } else {
     printf("Successfully loaded VCB\n");
-    g_vcb = (VCB*)buffer;
+    memcpy(vcb, buffer, sizeof(VCB));
+    // vcb = (VCB*)buffer;
+
+    printf("Printing VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: %ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: %ld\nDE_length: %ld\n----------------------------------", 
+      vcb->magic_signature,
+      vcb->volume_size,
+      vcb->block_size,
+      vcb->num_blocks,
+      vcb->FAT_start,
+      vcb->FAT_length,
+      vcb->DE_start,
+      vcb->DE_length);
+
     free(buffer);
-    return g_vcb;
+    return vcb;
   }
 }

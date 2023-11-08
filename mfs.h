@@ -32,6 +32,7 @@ typedef u_int64_t uint64_t;
 typedef u_int32_t uint32_t;
 #endif
 
+#define MAX_PATH 256 // Maximum file path length, including null character
 // This structure is returned by fs_readdir to provide the caller with information
 // about each file as it iterates through a directory
 struct fs_diriteminfo
@@ -52,7 +53,7 @@ typedef struct
 	unsigned short  d_reclen;		/* length of this record */
 	unsigned short	dirEntryPosition;	/* which directory entry position, like file pos */
 	//DE *	directory;			/* Pointer to the loaded directory you want to iterate */
-	// directory_entry* directory; // This is our loaded directory
+	directory_entry* directory; // This is our loaded directory
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
 } fdDir;
 
