@@ -811,10 +811,13 @@ int main (int argc, char * argv[])
         printf ("|---------------------------------|\n");
 
 	
+	// Writing sample data
+	writeTestFiles();
 	// Set cwd to root
-	printf("Setting cwd to root\n");
+	// printf("Setting cwd to root\n");
 	// int cwd_return = fs_setcwd("/");
-	int cwd_return = fs_setcwd("/root/slash/to/indicate/absolute");
+	// int cwd_return = fs_setcwd("/root/slash/to/indicate/absolute");
+	int cwd_return = 0;
 	if (cwd_return != 0) {
 		printf("Unable to find root directory!\n");
 	} else {

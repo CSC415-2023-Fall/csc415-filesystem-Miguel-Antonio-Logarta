@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "fsLow.h"
 #include "mfs.h"
@@ -106,6 +107,7 @@ fdDir * fs_opendir(const char *pathname) {
     lastToken = token;
 
     // Read each directory entry inside the current directory
+    int subFolderFound = 0;
     for (int i = sizeof(directory_entry); i < currDir->file_size; i += sizeof(directory_entry)) {
       directory_entry* subfolder = (directory_entry*)malloc(sizeof(directory_entry));
       memcpy(subfolder, buffer + i, sizeof(directory_entry));
@@ -113,17 +115,29 @@ fdDir * fs_opendir(const char *pathname) {
       if (subfolder->is_directory == 0) {
         if (strcmp(subfolder->name, token) == 0) {
           // Match found, set current folder to subfolder
-          realloc(buffer, subfolder->file_size);
+          buffer = realloc(buffer, subfolder->file_size);
           blocksRead = LBAread(buffer, 1, subfolder->block_location);
           memcpy(currDir, buffer, sizeof(directory_entry));
+          subFolderFound = 1;
         }
       }
+      free(subfolder);
+    }
+
+    if (subFolderFound == 0) {
+      // If no match has been found, return NULL since there is no subfolder to enter
+      return NULL; 
     }
 
     token = strtok(NULL, "/");
   }
 
   printf("Last folder: %s\n", lastToken);
+
+  // We reached the end of the path, return current directory
+  fdDir* newDir = (fdDir*)malloc(sizeof(fdDir));
+  // newDir->di = fs_readdir(newDir);
+  // newDir.
 
   /*
     If absolute path, set current folder to root
@@ -263,7 +277,10 @@ fdDir * fs_opendir(const char *pathname) {
 
 }
 
-struct fs_diriteminfo *fs_readdir(fdDir *dirp);
+struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
+  return NULL;
+}
+
 int fs_closedir(fdDir *dirp);
 
 char *fs_getcwd(char *pathname, size_t size) {
@@ -303,5 +320,356 @@ int fs_delete(char* filename);	//removes a file
 int fs_stat(const char *path, struct fs_stat *buf);
 
 int writeTestFiles() {
+  int blocksRead;
+  int blocksWritten;
+  unsigned char* buffer;
+  char* strBuff;
+  FAT_block* FATTable;
+
+  // Read vcb
+  VCB* vcb = getVCB();
+
+  // Read FAT Table
+  FATTable = (FAT_block*)malloc(vcb->block_size*vcb->FAT_length);
+  if (FATTable == NULL) {
+    perror("Error allocating file table");
+    exit(EXIT_FAILURE);
+  }
+
+  buffer = (unsigned char*)malloc(vcb->block_size*vcb->FAT_length);
+  blocksRead = LBAread(buffer, vcb->FAT_length, vcb->FAT_start);
+  if (blocksRead < vcb->FAT_length) {
+    perror("There was an error reading fat table");
+    exit(EXIT_FAILURE);
+  }
+  memcpy(FATTable, buffer, vcb->block_size*vcb->FAT_length);
+
+  // Reserve lba blocks 0 to 8
+  for (int i = 1; i < 9; i++) {
+    FATTable[i].in_use = 1;
+    FATTable[i].end_of_file = 1;
+  }
+
+  // We have one file that spans two blocks
+  FATTable[7].end_of_file = 0;
+  memcpy(buffer, FATTable, vcb->block_size*vcb->FAT_length);
+  blocksWritten = LBAwrite(buffer, vcb->FAT_length, vcb->FAT_start);
+  if (blocksWritten < vcb->FAT_length) {
+    perror("There was an error writing FAT table");
+    exit(EXIT_FAILURE);
+  }
+
+  /*
+    Now insert the directories into the file tree
+  */
+  directory_entry* dirBuffer = (directory_entry*)malloc(vcb->block_size);
+  directory_entry* rootDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* parentDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* homeDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* desktopDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* notesDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* configDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* miscDir = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* someFile = (directory_entry*)malloc(sizeof(directory_entry));
+  directory_entry* bigFile = (directory_entry*)malloc(sizeof(directory_entry));
+
+  // Read root dir
+  buffer = realloc(buffer, vcb->block_size*vcb->DE_length);
+  if (buffer == NULL) {
+    perror("realloc failed");
+    exit(EXIT_FAILURE);
+  }
+
+  blocksRead = LBAread(buffer, vcb->DE_length, vcb->DE_start);
+  if (blocksRead < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  memcpy(rootDir, buffer, sizeof(directory_entry));
+
+  // In root parent folder, 
+  // Create ..
+  // Create Home directory
+  // Create Desk directory
+  // Create Notes directory
+  // strncpy(rootDir->name, "rooooot", sizeof(rootDir->name) / sizeof(rootDir->name[0]));
+  rootDir->file_size = sizeof(directory_entry)*5; // Number of subdirectories inside + itself + parent
+
+  parentDir->block_location = vcb->DE_start;
+  strncpy(parentDir->name, "..", sizeof(parentDir->name) / sizeof(parentDir->name[0]));          
+  parentDir->is_directory = 1;   
+  parentDir->file_size = rootDir->file_size;    // We are inserting 3 directories into the directory 
+  parentDir->date_created = rootDir->date_created; 
+  parentDir->last_modified = rootDir->last_modified; 
+
+  homeDir->block_location = 155;
+  strncpy(homeDir->name, "Home", sizeof(homeDir->name) / sizeof(homeDir->name[0]));          
+  homeDir->is_directory = 1;   
+  homeDir->file_size = sizeof(directory_entry)*4;    // We are inserting 2 subdirectories into the directory 
+  homeDir->date_created = time(0); 
+  homeDir->last_modified = time(0); 
+
+  desktopDir->block_location = 156;
+  strncpy(desktopDir->name, "Desktop", sizeof(desktopDir->name) / sizeof(desktopDir->name[0]));          
+  desktopDir->is_directory = 1;   
+  desktopDir->file_size = sizeof(directory_entry)*2; // Directory entry contains itself and its parent 
+  desktopDir->date_created = time(0); 
+  desktopDir->last_modified = time(0); 
+
+  desktopDir->block_location = 157;
+  strncpy(notesDir->name, "Notes", sizeof(notesDir->name) / sizeof(notesDir->name[0]));          
+  notesDir->is_directory = 1;   
+  notesDir->file_size = sizeof(directory_entry)*4;    // We are inserting 2 files into the directory 
+  notesDir->date_created = time(0); 
+  notesDir->last_modified = time(0); 
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], rootDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], parentDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[2], homeDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[3], desktopDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[4], notesDir, sizeof(directory_entry));
+
+  blocksRead = LBAwrite(dirBuffer, 1, vcb->DE_start);
+  if (blocksRead < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  // Under home folder
+  // Create parent directory
+  // Create config directory
+  // Create misc directory
+  parentDir->block_location = rootDir->block_location;
+  strncpy(parentDir->name, "..", sizeof(parentDir->name) / sizeof(parentDir->name[0]));          
+  parentDir->is_directory = 1;   
+  parentDir->file_size = homeDir->file_size;    // We are inserting 3 directories into the directory 
+  parentDir->date_created = homeDir->date_created; 
+  parentDir->last_modified = homeDir->last_modified; 
+
+  configDir->block_location = 158;
+  strncpy(configDir->name, "Config", sizeof(configDir->name) / sizeof(configDir->name[0]));          
+  configDir->is_directory = 1;   
+  configDir->file_size = sizeof(directory_entry)*4;    // We are inserting 2 subdirectories into the directory 
+  configDir->date_created = time(0); 
+  configDir->last_modified = time(0); 
+
+  miscDir->block_location = 159;
+  strncpy(miscDir->name, "Misc", sizeof(miscDir->name) / sizeof(miscDir->name[0]));          
+  miscDir->is_directory = 1;   
+  miscDir->file_size = sizeof(directory_entry)*4;    // We are inserting 2 subdirectories into the directory 
+  miscDir->date_created = time(0); 
+  miscDir->last_modified = time(0);
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], homeDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], parentDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[2], configDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[3], miscDir, sizeof(directory_entry));
+
+  blocksRead = LBAwrite(dirBuffer, 1, homeDir->block_location);
+  if (blocksRead < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  // Create config directory entry
+  memcpy(parentDir, homeDir, sizeof(directory_entry));
+  strncpy(parentDir->name, "..", sizeof(parentDir->name) / sizeof(parentDir->name[0]));
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], configDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], parentDir, sizeof(directory_entry));
+
+  blocksRead = LBAwrite(dirBuffer, 1, configDir->block_location);
+  if (blocksRead < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  // Create misc directory entry
+  memcpy(parentDir, homeDir, sizeof(directory_entry));
+  strncpy(parentDir->name, "..", sizeof(parentDir->name) / sizeof(parentDir->name[0]));
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], miscDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], parentDir, sizeof(directory_entry));
+
+  blocksRead = LBAwrite(dirBuffer, 1, miscDir->block_location);
+  if (blocksRead < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  // Create the desktop directory entry
+  memcpy(parentDir, rootDir, sizeof(directory_entry));
+  strncpy(parentDir->name, "..", sizeof(parentDir->name) / sizeof(parentDir->name[0]));
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], desktopDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], parentDir, sizeof(directory_entry));
+
+  blocksRead = LBAwrite(dirBuffer, 1, desktopDir->block_location);
+  if (blocksRead < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  // Under the Notes directory
+  // Create sometxt.txt file
+  // Create Bigfile.txt file
+  memcpy(parentDir, rootDir, sizeof(directory_entry));
+  strncpy(parentDir->name, "..", sizeof(parentDir->name) / sizeof(parentDir->name[0]));
+
+  notesDir->block_location = 157;
+  strncpy(notesDir->name, "Notes", sizeof(notesDir->name) / sizeof(notesDir->name[0]));          
+  notesDir->is_directory = 1;   
+  notesDir->file_size = sizeof(directory_entry)*4;    // We are inserting 2 files into the directory 
+  notesDir->date_created = rootDir->date_created; 
+  notesDir->last_modified = rootDir->last_modified; 
+
+  someFile->block_location = 160;
+  strncpy(someFile->name, "someFile.txt", sizeof(someFile->name) / sizeof(someFile->name[0]));          
+  someFile->is_directory = 0;   
+  someFile->file_size = rootDir->file_size;
+  someFile->date_created = rootDir->date_created; 
+  someFile->last_modified = rootDir->last_modified; 
+
+  bigFile->block_location = 161;
+  strncpy(bigFile->name, "bigFile.txt", sizeof(bigFile->name) / sizeof(bigFile->name[0]));          
+  bigFile->is_directory = 0;   
+  bigFile->file_size = rootDir->file_size;
+  bigFile->date_created = rootDir->date_created; 
+  bigFile->last_modified = rootDir->last_modified; 
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], notesDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], parentDir, sizeof(directory_entry));
+  memcpy(&dirBuffer[2], someFile, sizeof(directory_entry));
+  memcpy(&dirBuffer[3], bigFile, sizeof(directory_entry));
+
+  blocksWritten = LBAwrite(dirBuffer, 1, desktopDir->block_location);
+  if (blocksWritten < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+  // Write somefile directory entry and insert data
+  strBuff = (char*)malloc(100*sizeof(char));
+  if (strBuff == NULL) {
+    perror("Error allocating strbuf");
+    exit(EXIT_FAILURE);
+  }
+
+  strncpy(strBuff, "This is someFile.txt that has a little bit of data inside of it", 100);
+
+  memset(dirBuffer, '\0', vcb->block_size);
+  memcpy(&dirBuffer[0], someFile, sizeof(directory_entry));
+  memcpy(&dirBuffer[1], strBuff, 100);
+
+  blocksWritten = LBAwrite(dirBuffer, 1, someFile->block_location);
+  if (blocksWritten < 1) {
+    perror("Error reading root");
+    exit(EXIT_FAILURE);
+  }
+
+
+  printf("Writing Big File that spans 2 blocks\n");
+  printf("Writing to block %ld\n", bigFile->block_location);
+  // Write bigFile directory entry and insert data
+  const char* bigString = "Life is a journey filled with twists and turns. It's a continuous adventure where we learn, grow, and experience the beauty of the world. Every day presents new opportunities and challenges, and it's up to us to make the most of them. Embrace the unknown, cherish the moments, and strive to be the best version of yourself. In this journey, remember that kindness, empathy, and love are the guiding stars that illuminate the path. So, let's keep moving forward with an open heart and a curious mind, making the most of every step we take";
   
+  dirBuffer = realloc(dirBuffer, 2*vcb->block_size);
+  if (strBuff == NULL) {
+    perror("Error allocating dirbuffer");
+    exit(EXIT_FAILURE);
+  }
+
+  strBuff = realloc(strBuff, 700);
+  if (strBuff == NULL) {
+    perror("Error allocating strbuf");
+    exit(EXIT_FAILURE);
+  }
+
+  memset(dirBuffer, '\0', 2*vcb->block_size);
+  memcpy(&dirBuffer[0], bigFile, sizeof(directory_entry));
+
+  strncpy(strBuff, bigString, 700);
+  strBuff[700 - 1] = '\0';
+  memcpy(&dirBuffer[1], strBuff, 700);
+
+  blocksWritten = LBAwrite(dirBuffer, 2, bigFile->block_location);
+  if (blocksWritten < 2) {
+    printf("%d %ld\n", blocksWritten, bigFile->block_location);
+    perror("Error writing to disk");
+    exit(EXIT_FAILURE);
+  }
+  // // // memcpy(&dirBuffer[1], strBuff, 100);
+
+  // // blocksRead = LBAwrite(dirBuffer, 1, bigFile->block_location);
+  // // if (blocksRead < 1) {
+  // //   perror("Error reading root");
+  // //   exit(EXIT_FAILURE);
+  // // }
+  // unsigned char* bigBuff = malloc(vcb->block_size*2);
+  // if (bigBuff == NULL) {
+  //   perror("Error reallocating strbuf");
+  //   exit(EXIT_FAILURE);
+  // }
+  // printf("big buff\n");
+
+
+  // realloc(strBuff, 800*sizeof(char));
+  // if (strBuff == NULL) {
+  //   perror("Error reallocating strbuf");
+  //   exit(EXIT_FAILURE);
+  // }
+
+  // printf("str buff\n");
+
+  // strncpy(strBuff, "Life is a journey filled with twists and turns. It's a continuous adventure where we learn, grow, and experience the beauty of the world. Every day presents new opportunities and challenges, and it's up to us to make the most of them. Embrace the unknown, cherish the moments, and strive to be the best version of yourself. In this journey, remember that kindness, empathy, and love are the guiding stars that illuminate the path. So, let's keep moving forward with an open heart and a curious mind, making the most of every step we take", 400);
+
+  // // realloc(dirBuffer, vcb->block_size*2);
+
+  // printf("strncpy compl\n");
+
+  // memset(bigBuff, '\0', vcb->block_size*2);
+  // printf("Preparing memcpy\n");
+  // memcpy(&bigBuff, bigFile, sizeof(directory_entry));
+  // memcpy(&bigBuff + sizeof(directory_entry), strBuff, 400);
+  // printf("Preparing done memcpy\n");
+  // printf("Here: %ld", bigFile->block_location);
+  
+  // blocksWritten = LBAwrite(bigBuff, 1, bigFile->block_location);
+  // if (blocksWritten < 1) {
+  //   printf("%ld\n", blocksWritten);
+  //   perror("Error reading root");
+  //   exit(EXIT_FAILURE);
+  // }
+
+  // printf("Done blocks read");
+
+  // free(vcb);
+
+  free(vcb);
+  free(buffer);
+  free(strBuff);
+  free(FATTable);
+  free(dirBuffer);
+  free(rootDir);
+  free(parentDir);
+  free(homeDir);
+  free(desktopDir);
+  free(notesDir);
+  free(configDir);
+  free(miscDir);
+  free(someFile);
+  free(bigFile);
+}
+
+uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize) {
+  double dBlocksNeeded = bytes/blockSize;
+  uint64_t blocksNeeded = ceil(dBlocksNeeded);
+  return blocksNeeded;
 }

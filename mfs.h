@@ -92,5 +92,8 @@ struct fs_stat
 
 int fs_stat(const char *path, struct fs_stat *buf);
 
+int writeTestFiles();
+uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
+
 #endif
 
