@@ -29,6 +29,12 @@
 // Keep VCB in memory
 VCB* g_vcb = NULL;
 
+// For writing root directory
+struct initRootDirectory {
+  directory_entry root;
+  directory_entry parentOfRoot;
+};
+
 int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   /*
     TODO:
@@ -136,26 +142,27 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   rootDir.block_location = vcb->DE_start;
   strncpy(rootDir.name, "/", sizeof(rootDir.name) / sizeof(rootDir.name[0]));          
   rootDir.is_directory = 1;   
-  rootDir.file_size = sizeof(directory_entry)*3;    // We are inserting 3 directories into the directory 
+  rootDir.file_size = sizeof(directory_entry)*2;    // We are inserting 2 directories into the directory 
   rootDir.date_created = time(0); 
   rootDir.last_modified = time(0); 
 
   // Create subdirectories of root
   directory_entry parentOfRoot = rootDir; // The parent of the root is itself
-  strcpy(parentOfRoot.name, "..");        
-
-  directory_entry selfOfRoot = rootDir; // Its own location is itself
-  strcpy(selfOfRoot.name, ".");          
+  strncpy(parentOfRoot.name, "..", sizeof(parentOfRoot.name) / sizeof(parentOfRoot.name[0]));        
 
   // Update FAT table to tell it that the first block has been taken
   FATTable[0].in_use = 1;
   FATTable[0].end_of_file = 1;
 
   // Copy bytes of directory entry to buffer
-  directory_entry* DEBuffer = (directory_entry*)malloc(3*sizeof(directory_entry));
-  memcpy(&DEBuffer[0], &rootDir, sizeof(directory_entry));
-  memcpy(&DEBuffer[1], &parentOfRoot, sizeof(directory_entry));
-  memcpy(&DEBuffer[2], &selfOfRoot, sizeof(directory_entry));
+  struct initRootDirectory initRootDir;
+  initRootDir.root = rootDir;
+  initRootDir.parentOfRoot = parentOfRoot;
+
+  printf("size of de buff: %d", sizeof(struct initRootDirectory));
+  unsigned char* DEBuffer = malloc(vcb->block_size);
+  memset(DEBuffer, '\0', vcb->block_size);
+  memcpy(DEBuffer, &initRootDir, sizeof(struct initRootDirectory));
 
   // Write Root directory
   blocksWritten = LBAwrite(DEBuffer, 1, 154);
@@ -232,15 +239,15 @@ VCB* getVCB() {
     memcpy(vcb, buffer, sizeof(VCB));
     // vcb = (VCB*)buffer;
 
-    printf("Printing VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: %ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: %ld\nDE_length: %ld\n----------------------------------", 
-      vcb->magic_signature,
-      vcb->volume_size,
-      vcb->block_size,
-      vcb->num_blocks,
-      vcb->FAT_start,
-      vcb->FAT_length,
-      vcb->DE_start,
-      vcb->DE_length);
+    // printf("----------------------------------\nPrinting VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: %ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: %ld\nDE_length: %ld\n----------------------------------\n", 
+    //   vcb->magic_signature,
+    //   vcb->volume_size,
+    //   vcb->block_size,
+    //   vcb->num_blocks,
+    //   vcb->FAT_start,
+    //   vcb->FAT_length,
+    //   vcb->DE_start,
+    //   vcb->DE_length);
 
     free(buffer);
     return vcb;
