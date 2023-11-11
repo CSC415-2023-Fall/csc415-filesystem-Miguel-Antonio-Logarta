@@ -811,35 +811,12 @@ int main (int argc, char * argv[])
 #endif
         printf ("|---------------------------------|\n");
 
-	
+
 	// Writing sample data
 	writeTestFiles();
-	// writeTestFilesV2();
-	int cwdReturn = 1;
-	fdDir* testDir;
-	
-	testDir = fs_opendir(NULL);
-	testDir = fs_opendir("Life is a journey filled with twists and turns. It's a continuous adventure where we learn, grow, and experience the beauty of the world. Every day presents new opportunities and challenges, and it's up to us to make the most of them. Embrace the unknown, cherish the moments, and strive to be the best version of yourself. In this journey, remember that kindness, empathy, and love are the guiding stars that illuminate the path. So, let's keep moving forward with an open heart and a curious mind, making the most of every step we take.");
-	testDir = fs_opendir("");
-	testDir = fs_opendir("Home/misc");
-	testDir = fs_opendir("/Home/misc");
-	testDir = fs_opendir("/Home/Misc");
-	free(testDir->directory);
-	free(testDir);
-	// Set cwd to root
-	// printf("Setting cwd to root\n");
-	// int cwd_return = fs_setcwd("/");
-	// cwd_return = fs_setcwd("/Home/misc");
-	// cwd_return = fs_setcwd("/Home/Misc");
-	// int cwd_return = fs_setcwd("relative_path/this/that");
-	// int cwd_return = fs_setcwd("/root/slash/to/indicate/absolute");
 
-	// relative/path/to/file.txt
-	// ./dot/notation/to/indicate/current/path.c
-	// ../double/dot/to/go/up/to/parents
-	// /root/slash/to/indicate/absolute path
-	// /root/slash/../slash/to
-	// /root/slash/./to
+	// Set cwd to root
+	int cwdReturn = fs_setcwd("/");
 	
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");

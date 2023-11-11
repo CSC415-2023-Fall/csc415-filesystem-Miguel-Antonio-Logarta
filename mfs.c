@@ -33,10 +33,12 @@ fdDir *fs_opendir(const char *pathname) {
           We receive an absolute path from pathname, perform a DFS search to
      find the directory, then we return a pointer to that directory
   */
-  // TODO: Move "checking if pathname is valid" in a different function
-  // If pathname starts with "/", absolutePath = true
-  // Else, it is a relative path.
-
+  /* TODO: 
+      - Move "checking if pathname is valid" in a different function
+      - Test relative paths
+      - Test .. in pathname 
+      - Test .  in pathname
+  */
   if (pathname == NULL) {
     printf("Pathname is NULL\n");
     return NULL;
@@ -112,15 +114,39 @@ fdDir *fs_opendir(const char *pathname) {
 
     memcpy(currentDirectory, buffer, sizeof(directory_entry));
   } else {
-    printf("We can't handle relative paths yet\n");
-    free(path);
-    free(fsVCB);
-    return NULL;
+    if (g_fs_cwd == NULL) {
+      printf("Current working directory has not been initialized yet!\n");
+      free(path);
+      free(fsVCB);
+      return NULL;
+    } else {
+      // Set current directory to cwd
+      currentDirectory = malloc(sizeof(directory_entry));
+      
+      buffer = malloc(fsVCB->DE_length * fsVCB->block_size);
+      if (buffer == NULL) {
+        printf("Error allocating buffer\n");
+        exit(EXIT_FAILURE);
+      }
+
+      if (currentDirectory == NULL) {
+        printf("Error with malloc for current directory\n");
+        exit(EXIT_FAILURE);
+      }
+
+      memcpy(currentDirectory, g_fs_cwd->directory, sizeof(directory_entry));
+    }
   }
 
   token = strtok(path, "/");
   int subfolderFound = 0;
+
+  if (strcmp(pathname, "/") == 0) {
+    subfolderFound = 1;
+  }
+
   while (token != NULL) {
+    // TODO: When the current token is "." skip this token
     subfolderFound = 0;
     // int subfolderFound = 0;
     // Read contents of current directory from disk
@@ -196,7 +222,6 @@ fdDir *fs_opendir(const char *pathname) {
     printf("Folder to return: %s\n", currentDirectory->name);
   }
 
-  // This doesn't get freed if we return NULL early
   free(path);
   free(fsVCB);
   free(buffer);
@@ -214,7 +239,13 @@ struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
   return NULL;
 }
 
-int fs_closedir(fdDir *dirp);
+int fs_closedir(fdDir *dirp) {
+  /* Frees fdDir struct from memory */
+  free(dirp->directory);
+  free(dirp->di);
+  free(dirp);
+  return 0;
+}
 
 char *fs_getcwd(char *pathname, size_t size) {
   /*
@@ -229,21 +260,34 @@ char *fs_getcwd(char *pathname, size_t size) {
     allocate a larger buffer if necessary.
   */
 
-  // But how do we know the current working directory?
-  // We have to know this from some state variable
+  // Pathname is basically our buffer to fill, we also return the pointer to this buffer
+  if (pathname == NULL) {
+    pathname = malloc(MAX_PATH);
+  }
+
+  return pathname;
 }
 
 int fs_setcwd(char *pathname) {
   // This is the equivalent of the linux chdir or cd
-  // We receive an absolute pathname
-  // g_fs_cwd = fs_opendir(pathname);
-  // if (!g_fs_cwd) {
-  //   return -1;  // Failure to set cwd. Not a valid file path
-  // } else {
-  //   return 0;
-  // }
-  fs_opendir(pathname);
-  return 0;
+  fdDir* newCwd;
+  newCwd = fs_opendir(pathname);
+  
+  if (newCwd == NULL) {
+    printf("Error reallocating new g_fs_cwd\n");
+    return -1;
+  } else {
+    g_fs_cwd = realloc(g_fs_cwd, sizeof(fdDir));
+    if (g_fs_cwd == NULL) {
+      printf("Error reallocating g_fs_cwd!\n");
+      exit(EXIT_FAILURE);
+    }
+
+    memcpy(g_fs_cwd, newCwd, sizeof(fdDir));
+    free(newCwd);
+
+    return 0;
+  }
 }
 
 int fs_isFile(char *filename); // return 1 if file, 0 otherwise

@@ -55,6 +55,7 @@ typedef struct
 	//DE *	directory;			/* Pointer to the loaded directory you want to iterate */
 	directory_entry* directory; // This is our loaded directory
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
+	char absolutePath[MAX_PATH];	// Stores our absolute path to this directory
 } fdDir;
 
 // Global uninitialized variables to store our state
