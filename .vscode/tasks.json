@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+			{
+					"label": "gcc build active file",
+					"command": "gcc",
+					"args": ["-Wall", "-Werror", "-std=c99", "-g", "-o", "${fileDirname}/${fileBasenameNoExtension}", "${fileDirname}/${fileBasename}"]
+			}
+	]
+}
