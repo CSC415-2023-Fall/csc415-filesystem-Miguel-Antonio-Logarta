@@ -24,6 +24,7 @@
 #include <readline/history.h>
 #include <getopt.h>
 #include <string.h>
+#include <assert.h>
 
 #include "fsLow.h"
 #include "mfs.h"
@@ -810,40 +811,52 @@ int main (int argc, char * argv[])
 #endif
         printf ("|---------------------------------|\n");
 
+
+	// Writing sample data
+	writeTestFiles();
+
+	// Set cwd to root
+	int cwdReturn = fs_setcwd("/");
 	
-	while (1)
+	if (cwdReturn != 0) {
+		printf("Unable to find root directory!\n");
+	} else {
+		while (1)
 		{
-		cmdin = readline("Prompt > ");
+			cmdin = readline("Prompt > ");
 #ifdef COMMAND_DEBUG
-		printf ("%s\n", cmdin);
+			printf ("%s\n", cmdin);
 #endif
-		
-		cmd = malloc (strlen(cmdin) + 30);
-		strcpy (cmd, cmdin);
-		free (cmdin);
-		cmdin = NULL;
-		
-		if (strcmp (cmd, "exit") == 0)
-			{
-			free (cmd);
-			cmd = NULL;
-			exitFileSystem();
-			closePartitionSystem();
-			// exit while loop and terminate shell
-			break;
-			}
 			
-		if ((cmd != NULL) && (strlen(cmd) > 0))
-			{
-			he = history_get(history_length);
-			if (!((he != NULL) && (strcmp(he->line, cmd)==0)))
+			cmd = malloc (strlen(cmdin) + 30);
+			strcpy (cmd, cmdin);
+			free (cmdin);
+			cmdin = NULL;
+			
+			if (strcmp (cmd, "exit") == 0)
 				{
-				add_history(cmd);
+				free (cmd);
+				cmd = NULL;
+				exitFileSystem();
+				closePartitionSystem();
+				// exit while loop and terminate shell
+				break;
 				}
-			processcommand (cmd);
-			}
 				
-		free (cmd);
-		cmd = NULL;		
+			if ((cmd != NULL) && (strlen(cmd) > 0))
+				{
+				he = history_get(history_length);
+				if (!((he != NULL) && (strcmp(he->line, cmd)==0)))
+					{
+					add_history(cmd);
+					}
+				processcommand (cmd);
+				}
+					
+			free (cmd);
+			cmd = NULL;		
 		} // end while
+
 	}
+
+}

@@ -5,6 +5,7 @@
     "files.associations": {
         "fslow.h": "c",
         "mfs.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "fsdebug.h": "c"
     },
 }
