@@ -45,7 +45,7 @@
 #define CMDCP2L_ON	0
 #define CMDCP2FS_ON	0
 #define CMDCD_ON	0
-#define CMDPWD_ON	0
+#define CMDPWD_ON	1
 #define CMDTOUCH_ON	0
 #define CMDCAT_ON	0
 
@@ -544,19 +544,21 @@ int cmd_cd (int argcnt, char *argvec[])
 int cmd_pwd (int argcnt, char *argvec[])
 	{
 #if (CMDPWD_ON == 1)
-	char * dir_buf = malloc (DIRMAX_LEN +1);
+	// ptr and currentWorkingDirectory points to the same buffer
+	char * currentWorkingDirectory = malloc (DIRMAX_LEN +1);
 	char * ptr;	
-	ptr = fs_getcwd (dir_buf, DIRMAX_LEN);	
+	ptr = fs_getcwd (currentWorkingDirectory, DIRMAX_LEN);	
 	if (ptr == NULL)			//an error occurred
 		{
 		printf ("An error occurred while trying to get the current working directory\n");
 		}
 	else
 		{
-		printf ("%s\n", ptr);
+		printf ("sdflkjsdf %s\n", ptr);
 		}
-	free (dir_buf);
-	dir_buf = NULL;
+		
+	free (currentWorkingDirectory);
+	currentWorkingDirectory = NULL;
 	ptr = NULL;
 	
 #endif
@@ -816,14 +818,21 @@ int main (int argc, char * argv[])
 	writeTestFiles();
 
 	// Set cwd to root
-	int cwdReturn = fs_setcwd("/");
+	int cwdReturn = fs_setcwd("/Home/Misc");
 	
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");
 	} else {
 		while (1)
 		{
-			cmdin = readline("Prompt > ");
+			char* cwd = fs_getcwd(NULL, 0);
+			if (cwd == NULL) {
+				printf("Unable to get cwd\n");
+				break;
+			}
+			printf("User @ %s", cwd);
+			cmdin = readline(" > ");
+
 #ifdef COMMAND_DEBUG
 			printf ("%s\n", cmdin);
 #endif
