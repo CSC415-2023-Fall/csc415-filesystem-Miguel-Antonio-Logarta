@@ -219,6 +219,7 @@ fdDir *fs_opendir(const char *pathname) {
     memcpy(newFdDir->directory, currentDirectory, sizeof(directory_entry));
     // TODO: assign return value of fsreaddir() to this 
     newFdDir->di = NULL;
+    strncpy(newFdDir->absolutePath, pathname, MAX_PATH);
     printf("Folder to return: %s\n", currentDirectory->name);
   }
 
@@ -259,14 +260,31 @@ char *fs_getcwd(char *pathname, size_t size) {
     and errno is set to ERANGE; an application should check for this error, and
     allocate a larger buffer if necessary.
   */
-
-  // Pathname is basically our buffer to fill, we also return the pointer to this buffer
-  if (pathname == NULL) {
-    pathname = malloc(MAX_PATH);
+  if (g_fs_cwd == NULL) {
+    return NULL;
   }
 
+  // Pathname is basically our buffer to fill, we also return the pointer to this buffer
+  printf("Size: %d, strlen: %d\n", size, strlen(g_fs_cwd->absolutePath) + 1);
+  if (pathname == NULL || size < strlen(g_fs_cwd->absolutePath) + 1) {
+    int absolutePathSize = strlen(g_fs_cwd->absolutePath) + 1;
+    pathname = realloc(pathname, absolutePathSize);
+    if (pathname == NULL) {
+      perror("Reallocation of pathname failed!");
+      exit(EXIT_FAILURE);
+    }
+    strncpy(pathname, g_fs_cwd->absolutePath, absolutePathSize);
+
+    for (int i = 0; i < absolutePathSize; i++) {
+      printf("%d, %c\n", i, pathname[i]);
+    }
+  } else {
+    strncpy(pathname, g_fs_cwd->absolutePath, size);
+  }
+  
   return pathname;
 }
+
 
 int fs_setcwd(char *pathname) {
   // This is the equivalent of the linux chdir or cd
