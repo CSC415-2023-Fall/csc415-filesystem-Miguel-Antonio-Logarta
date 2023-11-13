@@ -37,7 +37,7 @@
 #define DIRMAX_LEN		4096
 
 /****   SET THESE TO 1 WHEN READY TO TEST THAT COMMAND ****/
-#define CMDLS_ON	0
+#define CMDLS_ON	1
 #define CMDCP_ON	0
 #define CMDMV_ON	0
 #define CMDMD_ON	0
@@ -108,8 +108,9 @@ int displayFiles (fdDir * dirp, int flall, int fllong)
 			{
 			if (fllong)
 				{
-				fs_stat (di->d_name, &statbuf);
-				printf ("%s    %9ld   %s\n", fs_isDir(di->d_name)?"D":"-", statbuf.st_size, di->d_name);
+					printf("%s\n", di->d_name);
+				// fs_stat (di->d_name, &statbuf);
+				// printf ("%s    %9ld   %s\n", fs_isDir(di->d_name)?"D":"-", statbuf.st_size, di->d_name);
 				}
 			else
 				{
@@ -225,6 +226,7 @@ int cmd_ls (int argcnt, char *argvec[])
 		char * path = fs_getcwd(cwd, DIRMAX_LEN);	//get current working directory
 		fdDir * dirp;
 		dirp = fs_opendir (path);
+		printf("ls called! %s\n", dirp->directory->name);
 		return (displayFiles (dirp, flall, fllong));
 		}
 #endif
@@ -818,7 +820,7 @@ int main (int argc, char * argv[])
 	writeTestFiles();
 
 	// Set cwd to root
-	int cwdReturn = fs_setcwd("/Home/Misc");
+	int cwdReturn = fs_setcwd("/");
 	
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");

@@ -212,7 +212,10 @@ fdDir *fs_opendir(const char *pathname) {
   fdDir* newFdDir = malloc(sizeof(fdDir));
   if (subfolderFound == 1) {
     newFdDir->d_reclen = currentDirectory->file_size;
-    newFdDir->dirEntryPosition = currentDirectory->block_location;
+    // newFdDir->dirEntryPosition = currentDirectory->block_location;
+
+    // Pointer to our di offset
+    newFdDir->dirEntryPosition = 0;
     // TODO: Do a memcpy instead
     // newFdDir->directory = currentDirectory;
     newFdDir->directory = malloc(sizeof(directory_entry));
@@ -237,7 +240,67 @@ fdDir *fs_opendir(const char *pathname) {
 }
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
-  return NULL;
+
+  printf("Dir entry position and dirp reclen: %ld > %ld\n", dirp->dirEntryPosition, dirp->d_reclen);
+  if (dirp->dirEntryPosition > dirp->d_reclen) {
+    printf("Dir entry position greater than dirp: %ld > %ld\n", dirp->dirEntryPosition, dirp->d_reclen);
+    return NULL;
+  }
+
+  // Variables area
+  VCB* fsVCB;
+  unsigned char* buffer;
+  directory_entry* currentDE;
+  struct fs_diriteminfo* DEInfo;
+  uint64_t blocksRead;
+  // uint64_t readPosition;
+  uint64_t blocksToRead;
+
+  // Read the vcb to get size
+  fsVCB = getVCB();
+
+  blocksToRead = getMinimumBlocks(dirp->d_reclen, fsVCB->block_size);
+  // readPosition = fsVCB->block_size*dirp->directory->block_location;
+
+  buffer = malloc(fsVCB->block_size*blocksToRead);
+  if (buffer == NULL) {
+    printf("Failure to malloc buffer\n");
+    exit(EXIT_FAILURE);
+  }
+  
+  blocksRead = LBAread(buffer, blocksToRead, dirp->directory->block_location);
+  if (blocksRead < blocksToRead) {
+    printf("Failure to read directory entry\n");
+    exit(EXIT_FAILURE);
+  }
+
+  currentDE = malloc(sizeof(directory_entry));
+  if (currentDE == NULL) {
+    printf("Failure to malloc currentDE\n");
+    exit(EXIT_FAILURE);
+  }
+
+  DEInfo = malloc(sizeof(struct fs_diriteminfo));
+  if (DEInfo == NULL) {
+    printf("Failure to malloc DEInfo\n");
+    exit(EXIT_FAILURE);
+  }
+
+  memcpy(currentDE, buffer + dirp->dirEntryPosition, sizeof(directory_entry));
+
+  DEInfo->d_reclen = currentDE->file_size;
+  DEInfo->fileType = currentDE->is_directory;
+  strncpy(DEInfo->d_name, currentDE->name, MAX_PATH);
+
+  printf("Inside readdir: %d %d %s\n", DEInfo->d_reclen, DEInfo->fileType, DEInfo->d_name);
+
+  dirp->dirEntryPosition += sizeof(directory_entry);
+
+  free(fsVCB);
+  free(buffer);
+  free(currentDE);
+
+  return DEInfo;
 }
 
 int fs_closedir(fdDir *dirp) {
@@ -308,11 +371,19 @@ int fs_setcwd(char *pathname) {
   }
 }
 
-int fs_isFile(char *filename); // return 1 if file, 0 otherwise
-int fs_isDir(char *pathname);  // return 1 if directory, 0 otherwise
+int fs_isFile(char *filename) {
+  return 0;
+}
+
+int fs_isDir(char *pathname) {
+  return 0;
+}
+
 int fs_delete(char *filename); // removes a file
 
-int fs_stat(const char *path, struct fs_stat *buf);
+int fs_stat(const char *path, struct fs_stat *buf) {
+  // Print out statistics about a file
+}
 
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize) {
   uint64_t blocksNeeded = bytes / blockSize;

@@ -21,6 +21,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "mfs.h"
+
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
 
@@ -63,8 +65,12 @@ b_io_fd b_open(char *filename, int flags) {
   /*
     Find file in cwd
     If file not found, cancel
+      if O_CREATE defined, then create a new file
     If found, get an open FCB and return Fd
   */
+
+  g_fs_cwd;
+  // Iterate through each directory inside 
 
   b_io_fd returnFd;
 
