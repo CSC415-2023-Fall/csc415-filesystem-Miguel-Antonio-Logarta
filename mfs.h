@@ -52,7 +52,6 @@ typedef struct
 	/*****TO DO:  Fill in this structure with what your open/read directory needs  *****/
 	unsigned short  d_reclen;		/* length of this record */
 	unsigned short	dirEntryPosition;	/* which directory entry position, like file pos */
-	//DE *	directory;			/* Pointer to the loaded directory you want to iterate */
 	directory_entry* directory; // This is our loaded directory
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
 	char absolutePath[MAX_PATH];	// Stores our absolute path to this directory
@@ -93,8 +92,8 @@ struct fs_stat
 
 int fs_stat(const char *path, struct fs_stat *buf);
 
-int writeTestFiles();
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
+int writeTestFiles();
 
 #endif
 
