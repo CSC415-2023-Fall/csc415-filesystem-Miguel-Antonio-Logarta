@@ -212,7 +212,9 @@ fdDir *fs_opendir(const char *pathname) {
   fdDir* newFdDir = malloc(sizeof(fdDir));
   if (subfolderFound == 1) {
     newFdDir->d_reclen = currentDirectory->file_size;
-    newFdDir->dirEntryPosition = currentDirectory->block_location;
+
+    // Set file pointer to zero
+    newFdDir->dirEntryPosition = 0;
     // TODO: Do a memcpy instead
     // newFdDir->directory = currentDirectory;
     newFdDir->directory = malloc(sizeof(directory_entry));
@@ -237,6 +239,11 @@ fdDir *fs_opendir(const char *pathname) {
 }
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
+  /* 
+    Every time readdir is called, it will increment a pointer 
+    that points to the next directoriy inside fdDir's contents
+  */
+  dirp->dirEntryPosition += sizeof(directory_entry);
   return NULL;
 }
 
@@ -265,7 +272,7 @@ char *fs_getcwd(char *pathname, size_t size) {
   }
 
   // Pathname is basically our buffer to fill, we also return the pointer to this buffer
-  printf("Size: %d, strlen: %d\n", size, strlen(g_fs_cwd->absolutePath) + 1);
+  printf("Size: %ld, strlen: %ld\n", size, strlen(g_fs_cwd->absolutePath) + 1);
   if (pathname == NULL || size < strlen(g_fs_cwd->absolutePath) + 1) {
     int absolutePathSize = strlen(g_fs_cwd->absolutePath) + 1;
     pathname = realloc(pathname, absolutePathSize);
@@ -284,7 +291,6 @@ char *fs_getcwd(char *pathname, size_t size) {
   
   return pathname;
 }
-
 
 int fs_setcwd(char *pathname) {
   // This is the equivalent of the linux chdir or cd

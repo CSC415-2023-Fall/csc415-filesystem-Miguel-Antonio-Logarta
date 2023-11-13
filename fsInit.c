@@ -66,7 +66,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   vcb = (VCB*)buffer;
 
   // Check if partition has been initialized
-  if (vcb->magic_signature == NULL) {
+  if (vcb->magic_signature == (uint64_t)NULL) {
     printf("Disk is not initialized. Creating a new partition.\n");
   } else if (vcb->magic_signature != VOL_SIGNATURE) {
     printf("Disk signature does not match!\n");
@@ -159,7 +159,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   initRootDir.root = rootDir;
   initRootDir.parentOfRoot = parentOfRoot;
 
-  printf("size of de buff: %d", sizeof(struct initRootDirectory));
+  printf("size of de buff: %ld", sizeof(struct initRootDirectory));
   unsigned char* DEBuffer = malloc(vcb->block_size);
   memset(DEBuffer, '\0', vcb->block_size);
   memcpy(DEBuffer, &initRootDir, sizeof(struct initRootDirectory));
@@ -199,7 +199,10 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   return 0;
 }
 
-void exitFileSystem() { printf("System exiting\n"); }
+void exitFileSystem() { 
+  fs_closedir(g_fs_cwd);
+  printf("System exiting\n"); 
+}
 
 VCB* getVCB() {
   // Returns the volume control block.
