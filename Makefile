@@ -35,16 +35,22 @@
 
 
 ROOTNAME=fsshell
+BUILDPATH=build/
+TESTPATH=tests/
+OBJECTPATH=build/objects/
+SRCPATH=src/
+DEPSPATH=build/deps/
+
 HW=
 FOPTION=
 RUNOPTIONS=SampleVolume 10000000 512
 CC=gcc
-CFLAGS= -g -I.
-LIBS =pthread
-DEPS = 
+CFLAGS=-g -I.
+LIBS=pthread
+DEPS= 
 # Add any additional objects to this list
-ADDOBJ= fsInit.o mfs.o
-ARCH = $(shell uname -m)
+ADDOBJ=fsInit.o mfs.o
+ARCH=$(shell uname -m)
 
 ifeq ($(ARCH), aarch64)
 	ARCHOBJ=fsLowM1.o
@@ -52,21 +58,32 @@ else
 	ARCHOBJ=fsLow.o
 endif
 
-OBJ = $(ROOTNAME)$(HW)$(FOPTION).o $(ADDOBJ) $(ARCHOBJ)
+# Create all object files
+# Ex: OBJ = build/fsshell.o build/fsInit.o build/mfs.o fsLow.o 
+OBJ = $(OBJECTPATH)$(ROOTNAME)$(HW)$(FOPTION).o $(addprefix $(OBJECTPATH),$(ADDOBJ)) $(ARCHOBJ)
 
-%.o: %.c $(DEPS)
+# Locate all c files in src and create o files in build/objects/ and
+# Locate all dependencies in build/deps/ and create o files in build/objects
+# $@ is replaced by the target name
+# $< is the name of the first prerequisite
+$(OBJECTPATH)%.o: $(addprefix $(SRCPATH),%.c) $(addprefix $(DEPSPATH),$(DEPS))
 	$(CC) -c -o $@ $< $(CFLAGS) 
 
-$(ROOTNAME)$(HW)$(FOPTION): $(OBJ)
+# Create our executable in build/
+# $^ is replaced by all prerequisites. $^ is replaced by $(OBJ) which is a string containing
+# All object files
+# Change path of object file to go into ./objects
+$(BUILDPATH)$(ROOTNAME)$(HW)$(FOPTION): $(OBJ)
+	@echo objects: $(OBJ)
+	@echo all stuff: $^
 	$(CC) -o $@ $^ $(CFLAGS) -lm -l readline -l $(LIBS)
 
 clean:
-	rm $(ROOTNAME)$(HW)$(FOPTION).o $(ADDOBJ) $(ROOTNAME)$(HW)$(FOPTION)
+	rm $(OBJECTPATH)$(ROOTNAME)$(HW)$(FOPTION).o $(addprefix $(OBJECTPATH),$(ADDOBJ)) $(BUILDPATH)$(ROOTNAME)$(HW)$(FOPTION)
 
-run: $(ROOTNAME)$(HW)$(FOPTION)
-	./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
-
+run: $(BUILDPATH)$(ROOTNAME)$(HW)$(FOPTION)
+# @mkdir -p $(BUILDPATH)
+	./$(BUILDPATH)$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
+	
 vrun: $(ROOTNAME)$(HW)$(FOPTION)
-	valgrind ./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
-
-
+	valgrind ./$(BUILDPATH)$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
