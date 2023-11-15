@@ -228,7 +228,17 @@ VCB* getVCB() {
   // Return an instance of VCB. The user has to free it themselves
   // g_vcb = (VCB*)malloc(sizeof(VCB));
   VCB* vcb = malloc(sizeof(VCB));
+  if (vcb == NULL) {
+    printf("Error allocating vcb\n");
+    exit(EXIT_FAILURE);
+  }
+
   unsigned char* buffer = malloc(MINBLOCKSIZE);
+  if (buffer == NULL) {
+    printf("Error allocating vcb buffer\n");
+    exit(EXIT_FAILURE);
+  }
+
   int blocksRead = LBAread(buffer, 1, 0);
   if (blocksRead < 1) {
     printf("There was an error reading the VCB\n");

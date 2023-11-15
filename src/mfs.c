@@ -489,7 +489,30 @@ int fs_isDir(char *pathname) {
 int fs_delete(char *filename); // removes a file
 
 int fs_stat(const char *path, struct fs_stat *buf) {
-  // Print out statistics about a file
+  /* 
+    Fetches information about a file/directory via the fs_stat struct
+    Returns -1 on failure
+    Returns 0 on success
+  */
+ 
+  fdDir *file = fs_opendir(path);
+  if (file == NULL) {
+    return -1;
+  } else {
+    VCB* vcb = getVCB();
+
+    buf->st_size = file->di->d_reclen;
+    buf->st_blksize = vcb->block_size;
+    buf->st_blocks = getMinimumBlocks(file->di->d_reclen, vcb->block_size);
+    buf->st_accesstime = time(0);
+    buf->st_modtime = file->directory->last_modified;
+    buf->st_createtime = file->directory->date_created;
+
+    free(vcb);
+    free(file);
+
+    return 0;
+  }
 }
 
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize) {
