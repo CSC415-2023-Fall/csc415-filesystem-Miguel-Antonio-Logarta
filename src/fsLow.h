@@ -41,6 +41,10 @@
 //		return value -2 = insufficient space for the volume
 //		volSize will be filled with the volume size
 //		blockSize will be filled with the block size
+
+#ifndef _FS_LOW_H
+#define _FS_LOW_H
+
 #ifndef uint64_t
 typedef u_int64_t uint64_t;
 #endif
@@ -125,3 +129,5 @@ VCB* getVCB();
 
 #define PART_NOERROR 0
 #define PART_ERR_INVALID -4
+
+#endif

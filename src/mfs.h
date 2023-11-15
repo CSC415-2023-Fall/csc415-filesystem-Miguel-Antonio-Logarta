@@ -96,5 +96,7 @@ int fs_stat(const char *path, struct fs_stat *buf);
 int writeTestFiles();
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 
+void *fs_malloc(size_t size, const char *failMsg);
+
 #endif
 

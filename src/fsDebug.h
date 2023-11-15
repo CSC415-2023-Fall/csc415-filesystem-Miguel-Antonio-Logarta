@@ -1,27 +1,13 @@
 #ifndef _DEBUG_H
 #define _DEBUG_H
 
-#include "fsLow.h"
-
-#define DEBUG 1
-
-// Debug statements that will only compile when the debug flag is on
-#ifdef DEBUG
-#define DEBUG_PRINT(x) printf x
-#else
-#define DEBUG_PRINT(x) do {} while (0)
+#ifndef RELEASE
+#define DEBUG
 #endif
 
-void printVCB(VCB* vcb) {
-	printf("Printing VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: %ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: %ld\nDE_length: %ld\n", 
-	vcb->magic_signature,
-  vcb->volume_size,
-  vcb->block_size,
-  vcb->num_blocks,
-  vcb->FAT_start,
-  vcb->FAT_length,
-  vcb->DE_start,
-  vcb->DE_length);
-}
+#include "fsLow.h"
+
+// Debug statements that will only compile when the debug flag is on
+void d_printVCB(VCB* vcb);
 
 #endif

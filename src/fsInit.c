@@ -24,7 +24,7 @@
 #include "fsLow.h"  // VCB defined here
 #include "mfs.h"
 
-// #include "fsDebug.h"
+#include "fsDebug.h"
 
 // Keep VCB in memory
 VCB* g_vcb = NULL;
@@ -238,6 +238,7 @@ VCB* getVCB() {
   } else {
     printf("Successfully loaded VCB\n");
     memcpy(vcb, buffer, sizeof(VCB));
+    d_printVCB(vcb);
     // vcb = (VCB*)buffer;
 
     // printf("----------------------------------\nPrinting VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: %ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: %ld\nDE_length: %ld\n----------------------------------\n", 

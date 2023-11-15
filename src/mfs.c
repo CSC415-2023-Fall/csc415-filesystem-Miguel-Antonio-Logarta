@@ -5,15 +5,16 @@
 
 #include "fsLow.h"
 #include "mfs.h"
+#include "fsDebug.h"
 
-void printVCB(VCB *vcb) {
-  printf("Printing VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: "
-         "%ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: "
-         "%ld\nDE_length: %ld\n----------------------------------\n",
-         vcb->magic_signature, vcb->volume_size, vcb->block_size,
-         vcb->num_blocks, vcb->FAT_start, vcb->FAT_length, vcb->DE_start,
-         vcb->DE_length);
-}
+// void printVCB(VCB *vcb) {
+//   printf("Printing VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: "
+//          "%ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: "
+//          "%ld\nDE_length: %ld\n----------------------------------\n",
+//          vcb->magic_signature, vcb->volume_size, vcb->block_size,
+//          vcb->num_blocks, vcb->FAT_start, vcb->FAT_length, vcb->DE_start,
+//          vcb->DE_length);
+// }
 
 // Store out current working directory in memory
 fdDir *g_fs_cwd = NULL;
@@ -237,6 +238,112 @@ fdDir *fs_opendir(const char *pathname) {
     free(newFdDir);
     return NULL;
   }
+}
+
+fdDir* fs_opendirV2(const char *pathname) {
+  /*
+    More improved version of fs_opendir with cleaner mode readable code.
+    Can now properly handle . and .. 
+  */
+  if (pathname == NULL) {
+    printf("Pathname is NULL\n");
+    return NULL;
+  }
+  printf("---------------\n%s\n", pathname);
+
+  // If user passes in "" as path, just return root or current working directory
+  if (pathname[0] == '\0') {
+    printf("Pathname is blank\n");
+    
+    // Either returns null or g_fs_cwd
+    return g_fs_cwd;
+  }
+
+  if (strlen(pathname) + 1 > MAX_PATH) {
+    printf("Pathname exceeds MAX_PATH (%d characters)\n", MAX_PATH);
+    return NULL;
+  }
+
+  // Variables for path parsing
+  unsigned int isAbsolutePath;
+  char *path;
+  char *token;
+
+  // Variables to read file directories
+  VCB *fsVCB;
+  unsigned char *buffer;
+  directory_entry *currentDirectory;
+  unsigned char *directoryContents;
+  uint64_t blocksRead;
+  uint64_t blocksWritten;
+
+  // Copy pathname
+  path = malloc(MAX_PATH);
+  if (path == NULL) {
+    printf("Error allocating memory for path\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Check if pathname is absolute or relative path
+  if (path[0] == '/') {
+    isAbsolutePath = 1;
+  } else {
+    isAbsolutePath = 0;
+  }
+
+  // Get VCB
+  fsVCB = getVCB();
+  if (fsVCB == NULL) {
+    printf("There was an error allocating the VCB\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // Load root directory or current working directory
+  if (isAbsolutePath == 1) {
+    buffer = malloc(fsVCB->DE_length * fsVCB->block_size);
+    if (buffer == NULL) {
+      printf("Error allocating buffer\n");
+      exit(EXIT_FAILURE);
+    }
+
+    blocksRead = LBAread(buffer, fsVCB->DE_length, fsVCB->DE_start);
+    if (blocksRead < fsVCB->DE_length) {
+      printf("Error reading root directory\n");
+      exit(EXIT_FAILURE);
+    }
+
+    currentDirectory = malloc(sizeof(directory_entry));
+    if (currentDirectory == NULL) {
+      printf("Error with malloc for current directory\n");
+      exit(EXIT_FAILURE);
+    }
+
+    memcpy(currentDirectory, buffer, sizeof(directory_entry));
+  } else {
+    if (g_fs_cwd == NULL) {
+      printf("Current working directory has not been initialized yet!\n");
+      free(path);
+      free(fsVCB);
+      return NULL;
+    } else {
+      // Set current directory to cwd
+      currentDirectory = malloc(sizeof(directory_entry));
+      
+      buffer = malloc(fsVCB->DE_length * fsVCB->block_size);
+      if (buffer == NULL) {
+        printf("Error allocating buffer\n");
+        exit(EXIT_FAILURE);
+      }
+
+      if (currentDirectory == NULL) {
+        printf("Error with malloc for current directory\n");
+        exit(EXIT_FAILURE);
+      }
+
+      memcpy(currentDirectory, g_fs_cwd->directory, sizeof(directory_entry));
+    }
+  }
+  return NULL;
 }
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
@@ -750,4 +857,38 @@ int writeTestFiles() {
   free(miscDir);
   free(someFile);
   free(bigFile);
+}
+
+void *fs_malloc(size_t size, const char *failMsg) {
+  // Allocates memory using malloc, and exits if it fails
+  void* ptr = malloc(size);
+  if (ptr == NULL) {
+    printf("%s\n", failMsg);
+    exit(EXIT_FAILURE);
+  }
+  return ptr;
+}
+
+// Not tested yet
+void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, const char *failMsg) {
+  /* 
+    Reallocates memory using realloc
+    If realloc fails, 
+      it will return oldPtr if returnOldPtr is 1
+    else, 
+      it will exit the program
+  */
+  void *temp = realloc(oldPtr, newSize);
+  if (temp == NULL) {
+    free(temp);
+    if (returnOldPtr == 0) {
+      printf("%s\n", failMsg);
+      exit(EXIT_FAILURE);
+    } else {
+      return *oldPtr;
+    }
+  }
+
+  *oldPtr = &temp;
+  return *oldPtr;
 }
