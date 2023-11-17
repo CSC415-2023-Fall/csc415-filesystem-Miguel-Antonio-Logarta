@@ -24,7 +24,7 @@
 #include "fsLow.h"  // VCB defined here
 #include "mfs.h"
 
-#include "fsDebug.h"
+#include "debug.h"
 
 // Keep VCB in memory
 VCB* g_vcb = NULL;
@@ -66,7 +66,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   vcb = (VCB*)buffer;
 
   // Check if partition has been initialized
-  if (vcb->magic_signature == NULL) {
+  if (!vcb->magic_signature) {
     printf("Disk is not initialized. Creating a new partition.\n");
   } else if (vcb->magic_signature != VOL_SIGNATURE) {
     printf("Disk signature does not match!\n");
@@ -159,7 +159,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   initRootDir.root = rootDir;
   initRootDir.parentOfRoot = parentOfRoot;
 
-  printf("size of de buff: %d", sizeof(struct initRootDirectory));
+  debug_print("size of de buff: %ld", sizeof(struct initRootDirectory));
   unsigned char* DEBuffer = malloc(vcb->block_size);
   memset(DEBuffer, '\0', vcb->block_size);
   memcpy(DEBuffer, &initRootDir, sizeof(struct initRootDirectory));
@@ -204,40 +204,9 @@ void exitFileSystem() { printf("System exiting\n"); }
 VCB* getVCB() {
   // Returns the volume control block.
 
-  // Check if initialized
-  // if (g_vcb != NULL && force == 0) {
-  //   printf("VCB is not null\n");
-  //   return g_vcb;
-  // } else {
-  //   printf("malloc buffer for vcb\n");
-  //   g_vcb = (VCB*)malloc(sizeof(VCB));
-  //   unsigned char* buffer = malloc(MINBLOCKSIZE);
-  //   int blocksRead = LBAread(buffer, 1, 0);
-  //   if (blocksRead < 1) {
-  //     printf("There was an error reading the VCB\n");
-  //     free(buffer);
-  //     return NULL;
-  //   } else {
-  //     printf("Successfully loaded VCB\n");
-  //     g_vcb = (VCB*)buffer;
-  //     free(buffer);
-  //     return g_vcb;
-  //   }
-  // }
-
-  // Return an instance of VCB. The user has to free it themselves
-  // g_vcb = (VCB*)malloc(sizeof(VCB));
-  VCB* vcb = malloc(sizeof(VCB));
-  if (vcb == NULL) {
-    printf("Error allocating vcb\n");
-    exit(EXIT_FAILURE);
-  }
-
-  unsigned char* buffer = malloc(MINBLOCKSIZE);
-  if (buffer == NULL) {
-    printf("Error allocating vcb buffer\n");
-    exit(EXIT_FAILURE);
-  }
+  // Create an instance of VCB. The user has to free it themselves
+  VCB *vcb = fs_malloc(sizeof(VCB), "Error allocating VCB\n");
+  unsigned char *buffer = fs_malloc_buff(sizeof(VCB), MINBLOCKSIZE, "Error allocating vcb buffer\n");
 
   int blocksRead = LBAread(buffer, 1, 0);
   if (blocksRead < 1) {
@@ -245,23 +214,11 @@ VCB* getVCB() {
     free(vcb);
     free(buffer);
     return NULL;
-  } else {
-    printf("Successfully loaded VCB\n");
-    memcpy(vcb, buffer, sizeof(VCB));
-    d_printVCB(vcb);
-    // vcb = (VCB*)buffer;
-
-    // printf("----------------------------------\nPrinting VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: %ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: %ld\nDE_length: %ld\n----------------------------------\n", 
-    //   vcb->magic_signature,
-    //   vcb->volume_size,
-    //   vcb->block_size,
-    //   vcb->num_blocks,
-    //   vcb->FAT_start,
-    //   vcb->FAT_length,
-    //   vcb->DE_start,
-    //   vcb->DE_length);
-
-    free(buffer);
-    return vcb;
   }
+
+  // debug_print("Successfully loaded VCB\n");
+  memcpy(vcb, buffer, sizeof(VCB));
+  // d_printVCB(vcb);
+  free(buffer);
+  return vcb;
 }

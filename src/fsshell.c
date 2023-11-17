@@ -28,7 +28,7 @@
 
 #include "fsLow.h"
 #include "mfs.h"
-#include "fsDebug.h"
+#include "debug.h"
 
 #define PERMISSIONS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 
@@ -821,8 +821,27 @@ int main (int argc, char * argv[])
 	writeTestFiles();
 
 	// Set cwd to root
-	int cwdReturn = fs_setcwd("/");
+	// int cwdReturn = fs_setcwd("/");
+	// int dcwd = fs_setcwd("/");
+
+	// fdDir* testDir;	
+	// // testDir = fs_opendirV2(NULL);		// NULL
+	// // vvvv should say pathname exceeds MAX_PATH
+	// // testDir = fs_opendirV2("Life is a journey filled with twists and turns. It's a continuous adventure where we learn, grow, and experience the beauty of the world. Every day presents new opportunities and challenges, and it's up to us to make the most of them. Embrace the unknown, cherish the moments, and strive to be the best version of yourself. In this journey, remember that kindness, empathy, and love are the guiding stars that illuminate the path. So, let's keep moving forward with an open heart and a curious mind, making the most of every step we take.");
+	// // testDir = fs_opendirV2(""); // Return root directory
+	// // testDir = fs_opendirV2("Home/misc");	// cwd not initialized yet!
+	// // testDir = fs_opendirV2("/Home/misc");	// misc folder does not exist
+	// // testDir = fs_opendirV2("/Home/Misc");	// Success
+	// // testDir = fs_opendirV2(".......");			// Path ...... not found
+	// testDir = fs_opendirV2("////////");			// Return root
+	// testDir = fs_opendirV2("////..////");			// Return root
+	// testDir = fs_opendirV2("");							// Return root
+	// free(testDir->directory);
+	// free(testDir);
 	
+
+	// int cwdReturn = fs_opendirV2("/");
+	int cwdReturn = -1;
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");
 	} else {

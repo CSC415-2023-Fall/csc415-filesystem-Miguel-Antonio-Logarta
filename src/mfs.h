@@ -19,6 +19,7 @@
 #include <time.h>
 
 #include "b_io.h"
+#include "partition.h"
 
 #include <dirent.h>
 #define FT_REGFILE	DT_REG
@@ -33,6 +34,7 @@ typedef u_int32_t uint32_t;
 #endif
 
 #define MAX_PATH 256 // Maximum file path length, including null character
+
 // This structure is returned by fs_readdir to provide the caller with information
 // about each file as it iterates through a directory
 struct fs_diriteminfo
@@ -40,6 +42,7 @@ struct fs_diriteminfo
     unsigned short d_reclen;    /* length of this record */
     unsigned char fileType;    	// Is it a directory or a file?
     char d_name[256]; 			/* filename max filename is 255 characters */
+		uint64_t block_location;	// starting lba block of the file
 };
 
 // This is a private structure used only by fs_opendir, fs_readdir, and fs_closedir
@@ -52,7 +55,6 @@ typedef struct
 	/*****TO DO:  Fill in this structure with what your open/read directory needs  *****/
 	unsigned short  d_reclen;		/* length of this record */
 	unsigned short	dirEntryPosition;	/* which directory entry position, like file pos */
-	//DE *	directory;			/* Pointer to the loaded directory you want to iterate */
 	directory_entry* directory; // This is our loaded directory
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
 	char absolutePath[MAX_PATH];	// Stores our absolute path to this directory
@@ -67,6 +69,7 @@ int fs_rmdir(const char *pathname);
 
 // Directory iteration functions
 fdDir * fs_opendir(const char *pathname);
+fdDir * fs_opendirV2(const char *pathname);
 struct fs_diriteminfo *fs_readdir(fdDir *dirp);
 int fs_closedir(fdDir *dirp);
 
@@ -80,7 +83,7 @@ int fs_delete(char* filename);	//removes a file
 
 // This is the strucutre that is filled in from a call to fs_stat
 struct fs_stat
-	{
+{
 	off_t     st_size;    		/* total size, in bytes */
 	blksize_t st_blksize; 		/* blocksize for file system I/O */
 	blkcnt_t  st_blocks;  		/* number of 512B blocks allocated */
@@ -89,14 +92,25 @@ struct fs_stat
 	time_t    st_createtime;   	/* time of last status change */
 	
 	/* add additional attributes here for your file system */
-	};
+};
 
 int fs_stat(const char *path, struct fs_stat *buf);
 
+/* Utility functions */
 int writeTestFiles();
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
+uint64_t fs_getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
+uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize);
+fdDir *loadDir(directory_entry* de);
 
+/* Wrapper functions for memory allocation */
 void *fs_malloc(size_t size, const char *failMsg);
+unsigned char *fs_malloc_buff(size_t size, uint64_t blockSize, const char *failMsg);
+void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, const char *failMsg);
+
+/* Wrapper functions for LBAread and LBAwrite*/
+unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg);
+void fs_LBAwrite(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char *failMsg);
 
 #endif
 

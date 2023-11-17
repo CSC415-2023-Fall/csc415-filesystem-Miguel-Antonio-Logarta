@@ -2,19 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "fsLow.h"
 #include "mfs.h"
-#include "fsDebug.h"
-
-// void printVCB(VCB *vcb) {
-//   printf("Printing VCB\nmagic_signature: %ld\nvolume_size: %ld\nblock_size: "
-//          "%ld\nnum_blocks: %ld\nFAT_start: %ld\nFAT_length: %ld\nDE_start: "
-//          "%ld\nDE_length: %ld\n----------------------------------\n",
-//          vcb->magic_signature, vcb->volume_size, vcb->block_size,
-//          vcb->num_blocks, vcb->FAT_start, vcb->FAT_length, vcb->DE_start,
-//          vcb->DE_length);
-// }
+#include "debug.h"
 
 // Store out current working directory in memory
 fdDir *g_fs_cwd = NULL;
@@ -87,7 +79,7 @@ fdDir *fs_opendir(const char *pathname) {
   }
 
   // Get VCB
-  fsVCB = getVCB();
+  fsVCB = fs_getvcb();
   if (fsVCB == NULL) {
     printf("There was an error allocating the VCB\n");
     exit(EXIT_FAILURE);
@@ -249,15 +241,14 @@ fdDir* fs_opendirV2(const char *pathname) {
     printf("Pathname is NULL\n");
     return NULL;
   }
-  printf("---------------\n%s\n", pathname);
 
   // If user passes in "" as path, just return root or current working directory
-  if (pathname[0] == '\0') {
-    printf("Pathname is blank\n");
+  // if (pathname[0] == '\0') {
+  //   printf("Pathname is blank\n");
     
-    // Either returns null or g_fs_cwd
-    return g_fs_cwd;
-  }
+  //   // Either returns null or g_fs_cwd
+  //   return g_fs_cwd;
+  // }
 
   if (strlen(pathname) + 1 > MAX_PATH) {
     printf("Pathname exceeds MAX_PATH (%d characters)\n", MAX_PATH);
@@ -265,8 +256,9 @@ fdDir* fs_opendirV2(const char *pathname) {
   }
 
   // Variables for path parsing
-  unsigned int isAbsolutePath;
+  bool isAbsolutePath;
   char *path;
+  char *absolutePathCopy;
   char *token;
 
   // Variables to read file directories
@@ -277,46 +269,41 @@ fdDir* fs_opendirV2(const char *pathname) {
   uint64_t blocksRead;
   uint64_t blocksWritten;
 
-  // Copy pathname
-  path = malloc(MAX_PATH);
-  if (path == NULL) {
-    printf("Error allocating memory for path\n");
-    exit(EXIT_FAILURE);
-  }
+  // Copy the pathname
+  path = fs_malloc(MAX_PATH, "Error allocating memory for path\n");
+  memcpy(path, pathname, MAX_PATH);
+  absolutePathCopy = fs_malloc(MAX_PATH, "Error allocating memory for absolutePathCopy\n");
 
   // Check if pathname is absolute or relative path
   if (path[0] == '/') {
-    isAbsolutePath = 1;
+    isAbsolutePath = true;
   } else {
-    isAbsolutePath = 0;
+    isAbsolutePath = false;
   }
 
   // Get VCB
-  fsVCB = getVCB();
-  if (fsVCB == NULL) {
-    printf("There was an error allocating the VCB\n");
-    exit(EXIT_FAILURE);
-  }
+  VCB* vcb = fs_getvcb();
+  // fsVCB = fs_getvcb();
+  // if (fsVCB == NULL) {
+  //   printf("There was an error allocating the VCB\n");
+  //   exit(EXIT_FAILURE);
+  // }
 
-  // Load root directory or current working directory
-  if (isAbsolutePath == 1) {
-    buffer = malloc(fsVCB->DE_length * fsVCB->block_size);
-    if (buffer == NULL) {
-      printf("Error allocating buffer\n");
-      exit(EXIT_FAILURE);
-    }
-
-    blocksRead = LBAread(buffer, fsVCB->DE_length, fsVCB->DE_start);
-    if (blocksRead < fsVCB->DE_length) {
-      printf("Error reading root directory\n");
-      exit(EXIT_FAILURE);
-    }
-
-    currentDirectory = malloc(sizeof(directory_entry));
-    if (currentDirectory == NULL) {
-      printf("Error with malloc for current directory\n");
-      exit(EXIT_FAILURE);
-    }
+  /*
+    If pathname was an aboslute path
+      Set starting/current directory as root
+    If pathname was a relative path
+      Set starting/current directory as cwd
+  */
+  if (isAbsolutePath == true) {
+    buffer = fs_LBAread(
+              vcb->DE_length*vcb->block_size, 
+              vcb->block_size, 
+              vcb->DE_start, 
+              vcb->DE_length, 
+              "Error getting root");
+    
+    currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
 
     memcpy(currentDirectory, buffer, sizeof(directory_entry));
   } else {
@@ -324,33 +311,117 @@ fdDir* fs_opendirV2(const char *pathname) {
       printf("Current working directory has not been initialized yet!\n");
       free(path);
       free(fsVCB);
+
       return NULL;
     } else {
-      // Set current directory to cwd
-      currentDirectory = malloc(sizeof(directory_entry));
+      // Set current directory to cwd (Untested)
+      currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
       
-      buffer = malloc(fsVCB->DE_length * fsVCB->block_size);
-      if (buffer == NULL) {
-        printf("Error allocating buffer\n");
-        exit(EXIT_FAILURE);
-      }
+      int blocksToRead = getMinimumBlocks(g_fs_cwd->d_reclen, fsVCB->block_size);
 
-      if (currentDirectory == NULL) {
-        printf("Error with malloc for current directory\n");
-        exit(EXIT_FAILURE);
-      }
-
+      // Below isn't needed since we already have the cwd. No need to read from disk
+      // buffer = fs_malloc_buff(g_fs_cwd->d_reclen, fsVCB->block_size, "Error allocating buffer");
+      // blocksRead = LBAread(buffer, blocksToRead, g_fs_cwd->directory->block_location);
+      // if (blocksRead < blocksToRead) {
+      //   printf("Error reading cwd content\n");
+      //   exit(EXIT_FAILURE);
+      // }
+      
       memcpy(currentDirectory, g_fs_cwd->directory, sizeof(directory_entry));
+      strncpy(absolutePathCopy, g_fs_cwd->absolutePath, MAX_PATH);
     }
   }
+
+  // Edge cases:
+  /*
+    pathname = .....    // Say dir not found
+    pathname = /////////  // Return root dir
+    pathname = ""         // Return root dir
+  */
+  token = strtok(path, "/");
+  if (token != NULL) {
+    debug_print("token = %s, strlen(pathname) = %ld, strlen(token) = %ld\n", token, strlen(pathname), strlen(token));
+  } else {
+    // If token is null
+    /*
+      It could be a it is either blank, or just a sequence of / characters.
+      It will skip the while loop
+    */
+    debug_print("Either blank or /////");
+    debug_print("token is null, strlen(pathname) = %ld\n", strlen(pathname));
+  }
+
+  while (token != NULL) {
+    debug_print("current token: %s\n", token);
+
+    // Skip "."" in path
+    if (strcmp(token, ".") == 0) {
+      continue;
+    }
+
+    // Load contents of directory from disk
+    int blocksToRead = getMinimumBlocks(currentDirectory->file_size, fsVCB->block_size);
+    buffer = fs_malloc_buff(currentDirectory->file_size, fsVCB->block_size, "Unable to malloc directory entry buffer");
+    blocksRead = LBAread(buffer, blocksToRead, currentDirectory->block_location);
+    if (blocksRead < blocksToRead) {
+      printf("Error reading to buffer from disk\n");
+      return NULL;
+    }
+    directoryContents = fs_malloc(currentDirectory->file_size, "Unable to malloc directoryContents");
+    memcpy(directoryContents, buffer, currentDirectory->file_size);
+
+    // I feel like we can just use readdir to loop through the contents of this directory
+
+    // Check if subdirectory exists in current directory
+    for (int i = sizeof(directory_entry); i < currentDirectory->file_size; i += sizeof(directory_entry)) {
+      directory_entry* subfolder = malloc(sizeof(directory_entry));
+      if (subfolder == NULL) {
+        printf("Error malloc'ing subfolder\n");
+        exit(EXIT_FAILURE);
+      }
+      memcpy(subfolder, directoryContents + i, sizeof(directory_entry));
+
+      printf("|_%s\n", subfolder->name);
+
+      if (subfolder->is_directory == 1 && strcmp(subfolder->name, token) == 0) {
+        printf("Match found %s == %s\n", subfolder->name, token);
+        
+        // Enter directory
+        memset(currentDirectory, '\0', sizeof(directory_entry));
+        memcpy(currentDirectory, subfolder, sizeof(directory_entry));
+        // subfolderFound = 1;
+      }
+
+      free(subfolder);
+
+      // if (subfolderFound == 1) {
+      //   // No need to search the rest of the folders
+      //   break;
+      // }
+    }
+
+    token = strtok(NULL, "/");
+  }
+
+  // Copy and return the current directory
+  // fdDir* newFdDir = fs_malloc(sizeof(fdDir), "Unable to malloc newFdDir");
+  // newFdDir->d_reclen = currentDirectory->file_size;
+  // newFdDir->dirEntryPosition = 0;
+  // newFdDir->directory = fs_malloc(sizeof(directory_entry), "Unable to malloc directory for newFdDir");
+  // memcpy(newFdDir->directory, currentDirectory, sizeof(directory_entry));
+  // // TODO: assign return value of fsreaddir() to this 
+  // // newFdDir->di = NULL;
+  // newFdDir->di = fs_readdir(newFdDir);    // TODO: Check if this should be null or not
+  // strncpy(newFdDir->absolutePath, pathname, MAX_PATH);
+
   return NULL;
 }
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
 
-  printf("Dir entry position and dirp reclen: %ld > %ld\n", dirp->dirEntryPosition, dirp->d_reclen);
+  printf("Dir entry position and dirp reclen: %d > %d\n", dirp->dirEntryPosition, dirp->d_reclen);
   if (dirp->dirEntryPosition > dirp->d_reclen) {
-    printf("Dir entry position greater than dirp: %ld > %ld\n", dirp->dirEntryPosition, dirp->d_reclen);
+    printf("Dir entry position greater than dirp: %d > %d\n", dirp->dirEntryPosition, dirp->d_reclen);
     return NULL;
   }
 
@@ -364,7 +435,7 @@ struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
   uint64_t blocksToRead;
 
   // Read the vcb to get size
-  fsVCB = getVCB();
+  fsVCB = fs_getvcb();
 
   blocksToRead = getMinimumBlocks(dirp->d_reclen, fsVCB->block_size);
   // readPosition = fsVCB->block_size*dirp->directory->block_location;
@@ -435,7 +506,7 @@ char *fs_getcwd(char *pathname, size_t size) {
   }
 
   // Pathname is basically our buffer to fill, we also return the pointer to this buffer
-  printf("Size: %d, strlen: %d\n", size, strlen(g_fs_cwd->absolutePath) + 1);
+  printf("Size: %ld, strlen: %ld\n", size, strlen(g_fs_cwd->absolutePath) + 1);
   if (pathname == NULL || size < strlen(g_fs_cwd->absolutePath) + 1) {
     int absolutePathSize = strlen(g_fs_cwd->absolutePath) + 1;
     pathname = realloc(pathname, absolutePathSize);
@@ -499,7 +570,7 @@ int fs_stat(const char *path, struct fs_stat *buf) {
   if (file == NULL) {
     return -1;
   } else {
-    VCB* vcb = getVCB();
+    VCB* vcb = fs_getvcb();
 
     buf->st_size = file->di->d_reclen;
     buf->st_blksize = vcb->block_size;
@@ -516,6 +587,14 @@ int fs_stat(const char *path, struct fs_stat *buf) {
 }
 
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize) {
+  // Returns amount of blocks of size blockSize greater than bytes 
+  // debug_print("bytes: %ld, blocksize: %ld\n", bytes, blockSize);
+
+  if (blockSize == 0) {
+    perror("Division by zero error");
+    exit(EXIT_FAILURE);
+  }
+
   uint64_t blocksNeeded = bytes / blockSize;
   uint64_t remainder = bytes % blockSize;
   if (remainder > 0) {
@@ -543,7 +622,8 @@ int writeTestFiles() {
   FAT_block *FATTable;
 
   // Read vcb
-  VCB *vcb = getVCB();
+  debug_print("Getting the vcb for writeTestfiles");
+  VCB *vcb = fs_getvcb();
 
   // Read FAT Table
   FATTable = malloc(vcb->block_size * vcb->FAT_length);
@@ -892,6 +972,26 @@ void *fs_malloc(size_t size, const char *failMsg) {
   return ptr;
 }
 
+unsigned char *fs_malloc_buff(size_t size, uint64_t blockSize, const char *failMsg) {
+  /* 
+    Allocates a zero-initialized buffer whose size is evenly divisible by "blockSize".
+    The size of this buffer is always greater than or equal to "size".
+    Prints out "failMsg" if it fails to malloc the buffer.
+  */
+  uint64_t numberOfBlocks = getMinimumBlocks(size, blockSize);
+  debug_print("fs_malloc num blocks: %ld\n", numberOfBlocks);
+  debug_print("fs_malloc buff size: %ld\n", blockSize*numberOfBlocks);
+  unsigned char *buffer = malloc(blockSize*numberOfBlocks);
+  if (buffer == NULL) {
+    printf("%s\n", failMsg);
+    exit(EXIT_FAILURE);
+  }
+
+  memset(buffer, '\0', blockSize*numberOfBlocks);
+
+  return buffer;
+}
+
 // Not tested yet
 void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, const char *failMsg) {
   /* 
@@ -913,5 +1013,75 @@ void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, cons
   }
 
   *oldPtr = &temp;
-  return *oldPtr;
+  return oldPtr;
+}
+
+unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg) {
+  /* Reads from disk using LBAread and checks for read errors */
+  uint64_t blocksRead = 0;
+  uint64_t blocksToRead = getMinimumBlocks(size, blockSize);
+  unsigned char *buffer = fs_malloc_buff(size, blockSize, "Unable to malloc buffer for fs_LBAread");
+  blocksRead = LBAread(buffer, lbaCount, lbaPosition);
+  if (blocksRead < blocksToRead) {
+    debug_print(
+      "LBAread() failure:\n"
+      "size: %ld\n"
+      "blockSize: %ld\n"
+      "lbaPosition: %ld\n"
+      "lbaCount: %ld\n"
+      "blocksRead: %ld\n"
+      "blocksToRead: %ld\n",
+      size,
+      blockSize,
+      lbaPosition,
+      lbaCount,
+      blocksRead,
+      blocksToRead
+    );
+    printf("%s\n", failMsg);
+    exit(EXIT_FAILURE);
+  }
+
+  return buffer;
+}
+
+void fs_LBAwrite(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char *failMsg) {
+  /* Writes buffer to disk and aborts if it fails */
+  int blocksWritten = LBAwrite(buffer, lbaCount, lbaPosition);
+  if (blocksWritten < lbaCount) {
+    printf("%s\n", failMsg);
+    exit(EXIT_FAILURE);
+  }
+}
+
+uint64_t fs_getMinimumBlocks(uint64_t bytes, uint64_t blockSize) {
+  /* Returns the minimum number of lba blocks needed to fit "bytes" into */
+  if (blockSize == 0) {
+    printf("Division by zero error\n");
+    exit(EXIT_FAILURE);
+  }
+
+  uint64_t blocksNeeded = bytes / blockSize;
+  uint64_t remainder = bytes % blockSize;
+  if (remainder > 0) {
+    return blocksNeeded + 1;
+  } else {
+    return blocksNeeded;
+  }
+}
+
+uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize) {
+  /* Returns the byte size of the minimum number of lba blocks needed to fit "bytes" into*/
+  if (blockSize == 0) {
+    printf("Division by zero error\n");
+    exit(EXIT_FAILURE);
+  }
+
+  uint64_t blocksNeeded = bytes / blockSize;
+  uint64_t remainder = bytes % blockSize;
+  if (remainder > 0) {
+    return (blocksNeeded + 1)*blockSize;
+  } else {
+    return blocksNeeded*blockSize;
+  }
 }

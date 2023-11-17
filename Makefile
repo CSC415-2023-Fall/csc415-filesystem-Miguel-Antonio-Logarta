@@ -51,7 +51,7 @@ D_CFLAGS=-g -I.
 LIBS=pthread
 DEPS= 
 # Add any additional objects to this list
-ADDOBJ=fsInit.o mfs.o fsDebug.o
+ADDOBJ=fsInit.o mfs.o debug.o partition.o
 ARCH=$(shell uname -m)
 
 ifeq ($(ARCH), aarch64)
