@@ -232,33 +232,36 @@ fdDir *fs_opendir(const char *pathname) {
   }
 }
 
-fdDir* fs_opendirV2(const char *pathname) {
+fdDir *fs_opendirV3(const char *pathname) {
   /*
-    More improved version of fs_opendir with cleaner mode readable code.
-    Can now properly handle . and .. 
+          We receive an absolute path from pathname, perform a DFS search to
+     find the directory, then we return a pointer to that directory
+  */
+  /* TODO: 
+      - Move "checking if pathname is valid" in a different function
+      - Test relative paths
+      - Test .. in pathname 
+      - Test .  in pathname
   */
   if (pathname == NULL) {
     printf("Pathname is NULL\n");
     return NULL;
   }
 
-  // If user passes in "" as path, just return root or current working directory
+  // // If user passes in "" as path, just return root or current working directory
   // if (pathname[0] == '\0') {
-  //   printf("Pathname is blank\n");
-    
-  //   // Either returns null or g_fs_cwd
-  //   return g_fs_cwd;
+  //   printf("Pathname is blank");
+  //   return NULL;
   // }
 
   if (strlen(pathname) + 1 > MAX_PATH) {
-    printf("Pathname exceeds MAX_PATH (%d characters)\n", MAX_PATH);
+    printf("Pathname exceeds MAX_PATH\n");
     return NULL;
   }
 
   // Variables for path parsing
-  bool isAbsolutePath;
+  unsigned int isAbsolutePath;
   char *path;
-  char *absolutePathCopy;
   char *token;
 
   // Variables to read file directories
@@ -269,10 +272,14 @@ fdDir* fs_opendirV2(const char *pathname) {
   uint64_t blocksRead;
   uint64_t blocksWritten;
 
-  // Copy the pathname
-  path = fs_malloc(MAX_PATH, "Error allocating memory for path\n");
-  memcpy(path, pathname, MAX_PATH);
-  absolutePathCopy = fs_malloc(MAX_PATH, "Error allocating memory for absolutePathCopy\n");
+  // Copy pathname
+  path = malloc(MAX_PATH);
+  if (path == NULL) {
+    printf("Error allocating memory for path\n");
+    exit(EXIT_FAILURE);
+  }
+
+  strncpy(path, pathname, MAX_PATH);
 
   // Check if pathname is absolute or relative path
   if (path[0] == '/') {
@@ -282,97 +289,60 @@ fdDir* fs_opendirV2(const char *pathname) {
   }
 
   // Get VCB
-  VCB* vcb = fs_getvcb();
-  // fsVCB = fs_getvcb();
-  // if (fsVCB == NULL) {
-  //   printf("There was an error allocating the VCB\n");
-  //   exit(EXIT_FAILURE);
-  // }
+  fsVCB = fs_getvcb();
 
-  /*
-    If pathname was an aboslute path
-      Set starting/current directory as root
-    If pathname was a relative path
-      Set starting/current directory as cwd
-  */
+  // Load root directory or current working directory
   if (isAbsolutePath == true) {
-    buffer = fs_LBAread(
-              vcb->DE_length*vcb->block_size, 
-              vcb->block_size, 
-              vcb->DE_start, 
-              vcb->DE_length, 
-              "Error getting root");
-    
-    currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
-
+    buffer = fs_malloc_buff(sizeof(VCB), fsVCB->block_size, "Unable to malloc buffer");
+    buffer = fs_LBAread(buffer, 1, 0, "Unable to read root");
+    currentDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc current directory");
     memcpy(currentDirectory, buffer, sizeof(directory_entry));
   } else {
     if (g_fs_cwd == NULL) {
       printf("Current working directory has not been initialized yet!\n");
       free(path);
       free(fsVCB);
-
       return NULL;
     } else {
-      // Set current directory to cwd (Untested)
-      currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
-      
-      int blocksToRead = getMinimumBlocks(g_fs_cwd->d_reclen, fsVCB->block_size);
-
-      // Below isn't needed since we already have the cwd. No need to read from disk
-      // buffer = fs_malloc_buff(g_fs_cwd->d_reclen, fsVCB->block_size, "Error allocating buffer");
-      // blocksRead = LBAread(buffer, blocksToRead, g_fs_cwd->directory->block_location);
-      // if (blocksRead < blocksToRead) {
-      //   printf("Error reading cwd content\n");
-      //   exit(EXIT_FAILURE);
-      // }
-      
+      // Set current directory to cwd
+      currentDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc cwd");
+      // buffer = fs_malloc_buff(sizeof(VCB), fsVCB->block_size, "Unable to malloc buffer");
       memcpy(currentDirectory, g_fs_cwd->directory, sizeof(directory_entry));
-      strncpy(absolutePathCopy, g_fs_cwd->absolutePath, MAX_PATH);
     }
   }
 
-  // Edge cases:
-  /*
-    pathname = .....    // Say dir not found
-    pathname = /////////  // Return root dir
-    pathname = ""         // Return root dir
-  */
   token = strtok(path, "/");
-  if (token != NULL) {
-    debug_print("token = %s, strlen(pathname) = %ld, strlen(token) = %ld\n", token, strlen(pathname), strlen(token));
-  } else {
-    // If token is null
-    /*
-      It could be a it is either blank, or just a sequence of / characters.
-      It will skip the while loop
-    */
-    debug_print("Either blank or /////");
-    debug_print("token is null, strlen(pathname) = %ld\n", strlen(pathname));
+  int subfolderFound = false;
+
+  if (strcmp(pathname, "/") == 0) {
+    subfolderFound = true;
   }
 
   while (token != NULL) {
-    debug_print("current token: %s\n", token);
-
-    // Skip "."" in path
-    if (strcmp(token, ".") == 0) {
-      continue;
-    }
-
-    // Load contents of directory from disk
-    int blocksToRead = getMinimumBlocks(currentDirectory->file_size, fsVCB->block_size);
-    buffer = fs_malloc_buff(currentDirectory->file_size, fsVCB->block_size, "Unable to malloc directory entry buffer");
-    blocksRead = LBAread(buffer, blocksToRead, currentDirectory->block_location);
-    if (blocksRead < blocksToRead) {
-      printf("Error reading to buffer from disk\n");
+    // TODO: When the current token is "." skip this token
+    subfolderFound = 0;
+    // int subfolderFound = 0;
+    // Read contents of current directory from disk
+    printf("Current directory info: %ld, %ld: \n", currentDirectory->file_size, fsVCB->block_size);
+    int minimumBlocks = getMinimumBlocks(currentDirectory->file_size, fsVCB->block_size);
+    uint64_t bytesToLoad = fsVCB->block_size*minimumBlocks;
+    buffer = realloc(buffer, bytesToLoad);
+    memset(buffer, '\0', bytesToLoad);
+    blocksRead = LBAread(buffer, minimumBlocks, currentDirectory->block_location);
+    if (blocksRead < minimumBlocks) {
+      printf("Error reading directory: %s", currentDirectory->name);
       return NULL;
     }
-    directoryContents = fs_malloc(currentDirectory->file_size, "Unable to malloc directoryContents");
+
+    // Load from buffer into directory contents for reading
+    printf("min blocks: %d, bytesToLoad: %ld, blocksRead: %ld\n", minimumBlocks, bytesToLoad, blocksRead);
+    directoryContents = malloc(currentDirectory->file_size);
+    if (directoryContents == NULL) {
+      printf("Error malloc'ing directoryContents");
+      exit(EXIT_FAILURE);
+    }
     memcpy(directoryContents, buffer, currentDirectory->file_size);
 
-    // I feel like we can just use readdir to loop through the contents of this directory
-
-    // Check if subdirectory exists in current directory
     for (int i = sizeof(directory_entry); i < currentDirectory->file_size; i += sizeof(directory_entry)) {
       directory_entry* subfolder = malloc(sizeof(directory_entry));
       if (subfolder == NULL) {
@@ -389,32 +359,376 @@ fdDir* fs_opendirV2(const char *pathname) {
         // Enter directory
         memset(currentDirectory, '\0', sizeof(directory_entry));
         memcpy(currentDirectory, subfolder, sizeof(directory_entry));
-        // subfolderFound = 1;
+        subfolderFound = 1;
       }
 
       free(subfolder);
 
-      // if (subfolderFound == 1) {
-      //   // No need to search the rest of the folders
-      //   break;
-      // }
+      if (subfolderFound == 1) {
+        // No need to search the rest of the folders
+        break;
+      }
+    }
+
+    if (subfolderFound == 0) {
+      printf("Folder not found: %s\n", token);
+    }
+
+    free(directoryContents);
+    token = strtok(NULL, "/");
+
+    if (subfolderFound == 0) {
+      break;
+    }
+  }
+
+  fdDir* newFdDir = malloc(sizeof(fdDir));
+  if (subfolderFound == 1) {
+    newFdDir->d_reclen = currentDirectory->file_size;
+    // newFdDir->dirEntryPosition = currentDirectory->block_location;
+
+    // Pointer to our di offset
+    newFdDir->dirEntryPosition = 0;
+    // TODO: Do a memcpy instead
+    // newFdDir->directory = currentDirectory;
+    newFdDir->directory = malloc(sizeof(directory_entry));
+    memcpy(newFdDir->directory, currentDirectory, sizeof(directory_entry));
+    // TODO: assign return value of fsreaddir() to this 
+    newFdDir->di = NULL;
+    strncpy(newFdDir->absolutePath, pathname, MAX_PATH);
+    printf("Folder to return: %s\n", currentDirectory->name);
+  }
+
+  free(path);
+  free(fsVCB);
+  free(buffer);
+  free(currentDirectory);
+
+  if (subfolderFound == 1) {
+    return newFdDir;
+  } else {
+    free(newFdDir);
+    return NULL;
+  }
+}
+
+fdDir *fs_createFdDir(directory_entry *de, const char *absolutePath) {
+  fdDir *returnFdDir = fs_malloc(sizeof(fdDir), "Unable to malloc returnFdDir");
+  returnFdDir->directory = fs_malloc(sizeof(directory_entry), "Unable to malloc returnFdDir->directory");
+  // returnFdDir->absolutePath = fs_malloc(MAX_PATH, "Unable to malloc returnFdDir->absolutePath");
+  
+  returnFdDir->d_reclen = de->file_size;
+  returnFdDir->dirEntryPosition = 0;
+  returnFdDir->di = NULL;
+  strncpy(returnFdDir->absolutePath, absolutePath, MAX_PATH);
+  memcpy(returnFdDir->directory, de, sizeof(directory_entry));
+
+  return returnFdDir;
+}
+
+fdDir* fs_opendirV2(const char *pathname) {
+  /*
+    More improved version of fs_opendir with cleaner mode readable code.
+    Can now properly handle . and .. 
+
+    TODO: Since b_read() has not been done yet, all directories can only support up to 
+    512/64 = 8 directories, including itself. 
+  */
+  if (pathname == NULL) {
+    printf("Pathname is NULL\n");
+    return NULL;
+  }
+
+  if (strlen(pathname) + 1 > MAX_PATH) {
+    printf("Pathname exceeds MAX_PATH (%d characters)\n", MAX_PATH);
+    return NULL;
+  }
+
+  // Variables for path parsing
+  bool isAbsolutePath;
+  char *path;
+  char *absolutePath;
+  char *token;
+
+  // Variables to read file directories
+  VCB *vcb;
+  unsigned char *buffer;
+  directory_entry *currentDirectory;
+  unsigned char *directoryContents;
+  uint64_t blocksRead;
+  uint64_t blocksWritten;
+  bool subfolderFound;
+  fdDir* returnDir;
+
+  // Check if pathname is absolute or relative path
+  if (pathname[0] == '/') {
+    isAbsolutePath = true;
+  } else {
+    isAbsolutePath = false;
+    if (g_fs_cwd == NULL) {
+      printf("Current working directory is not initialized yet!\n");
+      return NULL;
+    }
+  }
+
+  // Get VCB
+  vcb = fs_getvcb();
+
+  if (isAbsolutePath == true) {
+    debug_print("%s is an absolute path\n", pathname);
+
+    // Load root directory as starting directory
+    // TODO: This will be replaced by b_read()
+    buffer = fs_malloc_buff(vcb->DE_length*vcb->block_size, vcb->block_size, "Error getting root");
+    buffer = fs_LBAread(buffer, 1, vcb->DE_start, "Unable to read root");
+
+    currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
+    memcpy(currentDirectory, buffer, sizeof(directory_entry));
+    
+    directoryContents = fs_malloc(currentDirectory->file_size, "Unable to malloc directory contents");
+    memcpy(directoryContents, buffer, currentDirectory->file_size);
+
+    path = fs_malloc(MAX_PATH, "Error allocating memory for path\n");
+    strncpy(path, pathname, MAX_PATH);
+
+    absolutePath = fs_malloc(MAX_PATH, "Error allocating memory for absolutePath\n");
+    strncpy(absolutePath, "/", MAX_PATH);
+
+    debug_print("%s is initialized\n", absolutePath);
+  } else {
+    debug_print("%s is a relative path\n", pathname);
+
+    // Load current working directory as starting directory
+    buffer = fs_malloc_buff(g_fs_cwd->d_reclen, vcb->block_size, "Error getting root");
+    buffer = fs_LBAread(buffer, 1, g_fs_cwd->directory->block_location, "Unable to read root");
+
+    currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
+    memcpy(currentDirectory, buffer, sizeof(directory_entry));
+    
+    directoryContents = fs_malloc(currentDirectory->file_size, "Unable to malloc directory contents");
+    memcpy(directoryContents, buffer, currentDirectory->file_size);
+
+    path = fs_malloc(MAX_PATH, "Error allocating memory for path\n");
+    strncpy(path, pathname, MAX_PATH);
+
+    absolutePath = fs_malloc(MAX_PATH, "Error allocating memory for absolutePath\n");
+    strncpy(absolutePath, g_fs_cwd->absolutePath, MAX_PATH);
+
+    debug_print("Relative path %s is initialized\n", absolutePath);
+  }
+  
+  subfolderFound = true;
+  token = strtok(path, "/");
+  while (token != NULL) {
+    debug_print("current token: %s\n", token);
+    
+    subfolderFound = false;   // Reset flag
+
+    // Skip "."" in path
+    if (strcmp(token, ".") == 0) {
+      continue;
+    }
+
+    debug_print("%s\n", currentDirectory->name);
+
+    // Loop through every subfolder of the current folder
+    for (int i = sizeof(directory_entry); i < currentDirectory->file_size; i += sizeof(directory_entry)) {
+      directory_entry* subfolder = fs_malloc(sizeof(directory_entry), "Unable to malloc subfolder");
+      memcpy(subfolder, directoryContents + i, sizeof(directory_entry));
+
+      debug_print("|_%s\n", subfolder->name);
+
+      if (subfolder->is_directory == 1 && strcmp(subfolder->name, token) == 0) {
+        debug_print("Subfolder found\n");
+        subfolderFound = true;
+
+        // Set current directory to this subfolder
+        // Load current working directory as starting directory
+
+        // Change to realloc
+        free(buffer);
+        buffer = fs_malloc_buff(subfolder->file_size, vcb->block_size, "Error getting subfolder");
+        buffer = fs_LBAread(buffer, 1, subfolder->block_location, "Unable to read root");
+
+        currentDirectory = realloc(currentDirectory, sizeof(directory_entry));
+        if (currentDirectory == NULL) {
+          printf("Unable to realloc current directory\n");
+          exit(EXIT_FAILURE);
+        }
+        memcpy(currentDirectory, buffer, sizeof(directory_entry));
+
+        directoryContents = realloc(directoryContents, currentDirectory->file_size);
+        if (directoryContents == NULL) {
+          printf("Unable to realloc directory contents\n");
+          exit(EXIT_FAILURE);
+        }
+        memcpy(directoryContents, buffer, currentDirectory->file_size);
+        
+        if (strcmp(token, "..") != 0) {
+          concatStrings(absolutePath, token, MAX_PATH);
+          debug_print("%s\n", absolutePath);
+        }
+
+        free(subfolder);
+        break;
+      }
+
+      free(subfolder);
+    }
+
+    if (subfolderFound == false) {
+      break;
     }
 
     token = strtok(NULL, "/");
   }
 
-  // Copy and return the current directory
-  // fdDir* newFdDir = fs_malloc(sizeof(fdDir), "Unable to malloc newFdDir");
-  // newFdDir->d_reclen = currentDirectory->file_size;
-  // newFdDir->dirEntryPosition = 0;
-  // newFdDir->directory = fs_malloc(sizeof(directory_entry), "Unable to malloc directory for newFdDir");
-  // memcpy(newFdDir->directory, currentDirectory, sizeof(directory_entry));
-  // // TODO: assign return value of fsreaddir() to this 
-  // // newFdDir->di = NULL;
-  // newFdDir->di = fs_readdir(newFdDir);    // TODO: Check if this should be null or not
-  // strncpy(newFdDir->absolutePath, pathname, MAX_PATH);
+  if (subfolderFound == true) {
+    debug_print("Path is valid, returning fd\n");
+    returnDir = fs_createFdDir(currentDirectory, absolutePath);
+  } else {
+    debug_print("Path is not valid, returning NULL\n");
+    returnDir = NULL;
+  }
 
-  return NULL;
+  free(path);
+  free(absolutePath);
+  free(vcb);
+  free(buffer);
+  free(currentDirectory);
+  free(directoryContents);
+
+  return returnDir;
+  /*
+    If pathname was an absolute path
+      Set starting/current directory as root
+    If pathname was a relative path
+      Set starting/current directory as cwd
+  */
+  // if (isAbsolutePath == true) {
+  //   debug_print("This is an absolute path!\n");
+  //   buffer = fs_malloc_buff(
+  //     vcb->DE_length*vcb->block_size, 
+  //     vcb->block_size, 
+  //     "Error getting root");
+    
+  //   currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
+
+  //   buffer = fs_LBAread(buffer, 1, vcb->DE_start, "Unable to read root");
+
+  //   memcpy(currentDirectory, buffer, sizeof(directory_entry));
+  //   strncpy(absolutePathCopy, "/", MAX_PATH);
+  //   debug_print("currdir: %s\n", currentDirectory->name);
+  //   debug_print("end of malloc stuff\n");
+  // } else {
+  //   if (g_fs_cwd == NULL) {
+  //     printf("Current working directory has not been initialized yet!\n");
+  //     free(path);
+  //     free(absolutePathCopy);
+  //     free(vcb);
+  //     return NULL;
+  //   } else {
+  //     // TODO: Set current directory to cwd (Untested)
+  //     currentDirectory = fs_malloc(sizeof(directory_entry), "Error with malloc for current directory");
+      
+  //     // int blocksToRead = getMinimumBlocks(g_fs_cwd->d_reclen, fsVCB->block_size);
+      
+  //     memcpy(currentDirectory, g_fs_cwd->directory, sizeof(directory_entry));
+  //     strncpy(absolutePathCopy, g_fs_cwd->absolutePath, MAX_PATH);
+  //   }
+  // }
+
+  // // Edge cases:
+  // /*
+  //   pathname = .....    // Say dir not found
+  //   pathname = /////////  // Return root dir
+  //   pathname = ""         // Return root dir
+  // */
+  // token = strtok(path, "/");
+
+  // // TODO: Delete this if else block when done
+  // if (token != NULL) {
+  //   debug_print("token = %s, strlen(pathname) = %ld, strlen(token) = %ld\n", token, strlen(pathname), strlen(token));
+  // } else {
+  //   // If token is null
+  //   /*
+  //     It could be a it is either blank, or just a sequence of / characters.
+  //     It will skip the while loop
+  //   */
+  //   debug_print("Either blank or /////");
+  //   debug_print("token is null, strlen(pathname) = %ld\n", strlen(pathname));
+  // }
+
+  // while (token != NULL) {
+  //   debug_print("current token: %s\n", token);
+
+  //   // Skip "."" in path
+  //   if (strcmp(token, ".") == 0) {
+  //     continue;
+  //   }
+
+  //   // Load contents of directory from disk
+  //   // buffer = fs_malloc_buff(currentDirectory->file_size, vcb->block_size, "Unable to malloc directory buffer");
+  //   // fs_LBAread(buffer, 1, currentDirectory->block_location, "Unable to read directory into disk");
+  //   // directoryContents = fs_malloc(currentDirectory->file_size, "Unable to malloc directoryContents");
+  //   // memcpy(directoryContents, buffer, currentDirectory->file_size);
+
+  //   // // Check if subdirectory exists in current directory
+  //   // int subfolderFound = false;
+
+  //   // // This for loop is having heap overflow issues
+  //   // for (int i = sizeof(directory_entry); i < currentDirectory->file_size; i += sizeof(directory_entry)) {
+  //   //   directory_entry* subfolder = fs_malloc(sizeof(directory_entry), "Unable to malloc subfolder");
+  //   //   memcpy(subfolder, directoryContents + i, sizeof(directory_entry));
+
+  //   //   debug_print("|_%s\n", subfolder->name);
+
+  //   //   // if (subfolder->is_directory == 1 && strcmp(subfolder->name, token) == 0) {
+  //   //   //   debug_print("Match found %s == %s\n", subfolder->name, token);
+        
+  //   //   //   // Enter directory
+  //   //   //   memset(currentDirectory, '\0', sizeof(directory_entry));
+  //   //   //   memcpy(currentDirectory, subfolder, sizeof(directory_entry));
+
+  //   //   //   // Update absolute path
+  //   //   //   // This is okay since we already checked if pathname > MAX_PATH
+  //   //   //   // strncpy(absolutePathCopy + strlen(absolutePathCopy) + 1, currentDirectory->name, strlen(currentDirectory->name));
+
+  //   //   //   subfolderFound = true;
+  //   //   //   free(subfolder);
+  //   //   //   break;
+  //   //   // }
+
+  //   //   free(subfolder);
+  //   // }
+
+  //   // if (subfolderFound == false) {
+  //   //   // /Home/Config/misc triggers this. fsVCB is invalid.
+  //   //   d_printVCB(fsVCB);
+
+  //   //   // If it entered here, then no match was found
+  //   //   free(fsVCB);
+  //   //   free(path);
+  //   //   free(absolutePathCopy);
+  //   //   free(buffer);
+  //   //   free(currentDirectory);
+  //   //   free(directoryContents);
+  //   //   return NULL;
+  //   // }
+
+  //   token = strtok(NULL, "/");
+  // }
+
+  // fdDir *returnDir = fs_createFdDir(currentDirectory, absolutePathCopy);
+  
+  // free(path);
+  // free(absolutePathCopy);
+  // free(vcb);
+  // free(buffer);
+  // free(currentDirectory);
+  // free(directoryContents);
+  
+  // return returnDir;
 }
 
 struct fs_diriteminfo *fs_readdir(fdDir *dirp) {
@@ -530,7 +844,7 @@ char *fs_getcwd(char *pathname, size_t size) {
 int fs_setcwd(char *pathname) {
   // This is the equivalent of the linux chdir or cd
   fdDir* newCwd;
-  newCwd = fs_opendir(pathname);
+  newCwd = fs_opendirV2(pathname);
   
   if (newCwd == NULL) {
     printf("Error reallocating new g_fs_cwd\n");
@@ -992,7 +1306,7 @@ unsigned char *fs_malloc_buff(size_t size, uint64_t blockSize, const char *failM
   return buffer;
 }
 
-// Not tested yet
+// Not tested yet. It's really wonky
 void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, const char *failMsg) {
   /* 
     Reallocates memory using realloc
@@ -1001,47 +1315,73 @@ void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, cons
     else, 
       it will exit the program
   */
-  void *temp = realloc(oldPtr, newSize);
-  if (temp == NULL) {
+  // void *temp = realloc(oldPtr, newSize);
+  // if (temp == NULL) {
+  //   free(temp);
+  //   if (returnOldPtr == 0) {
+  //     printf("%s\n", failMsg);
+  //     exit(EXIT_FAILURE);
+  //   } else {
+  //     return *oldPtr;
+  //   }
+  // }
+
+  // *oldPtr = &temp;
+  // return oldPtr;
+
+  void *temp;
+  temp = realloc(*oldPtr, newSize);
+  if (temp != NULL) {
+    *oldPtr = temp;
+    return oldPtr;
+  } else {
+    printf("Realloc fail, trying to free\n");
     free(temp);
     if (returnOldPtr == 0) {
       printf("%s\n", failMsg);
       exit(EXIT_FAILURE);
     } else {
-      return *oldPtr;
+      return oldPtr;
     }
   }
-
-  *oldPtr = &temp;
-  return oldPtr;
 }
 
-unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg) {
-  /* Reads from disk using LBAread and checks for read errors */
-  uint64_t blocksRead = 0;
-  uint64_t blocksToRead = getMinimumBlocks(size, blockSize);
-  unsigned char *buffer = fs_malloc_buff(size, blockSize, "Unable to malloc buffer for fs_LBAread");
-  blocksRead = LBAread(buffer, lbaCount, lbaPosition);
-  if (blocksRead < blocksToRead) {
-    debug_print(
-      "LBAread() failure:\n"
-      "size: %ld\n"
-      "blockSize: %ld\n"
-      "lbaPosition: %ld\n"
-      "lbaCount: %ld\n"
-      "blocksRead: %ld\n"
-      "blocksToRead: %ld\n",
-      size,
-      blockSize,
-      lbaPosition,
-      lbaCount,
-      blocksRead,
-      blocksToRead
-    );
+// unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg) {
+//   /* Reads from disk using LBAread and checks for read errors */
+//   uint64_t blocksRead = 0;
+//   uint64_t blocksToRead = getMinimumBlocks(size, blockSize);
+//   unsigned char *buffer = fs_malloc_buff(size, blockSize, "Unable to malloc buffer for fs_LBAread");
+//   blocksRead = LBAread(buffer, lbaCount, lbaPosition);
+//   if (blocksRead < blocksToRead) {
+//     debug_print(
+//       "LBAread() failure:\n"
+//       "size: %ld\n"
+//       "blockSize: %ld\n"
+//       "lbaPosition: %ld\n"
+//       "lbaCount: %ld\n"
+//       "blocksRead: %ld\n"
+//       "blocksToRead: %ld\n",
+//       size,
+//       blockSize,
+//       lbaPosition,
+//       lbaCount,
+//       blocksRead,
+//       blocksToRead
+//     );
+//     printf("%s\n", failMsg);
+//     exit(EXIT_FAILURE);
+//   }
+
+//   return buffer;
+// }
+
+unsigned char* fs_LBAread(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg) {
+  /* Reads from disk and stores into buffer. Aborts if it fails */
+  int blocksRead = LBAread(buffer, lbaCount, lbaPosition);
+  if (blocksRead < lbaCount) {
     printf("%s\n", failMsg);
     exit(EXIT_FAILURE);
   }
-
   return buffer;
 }
 
@@ -1084,4 +1424,14 @@ uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize) {
   } else {
     return blocksNeeded*blockSize;
   }
+}
+
+char* concatStrings(char* s1, char* s2, size_t size) {
+	// Returns null if s1 + s2 exceeds capacity of s1
+	if (strlen(s1) + strlen(s2) <= size) {
+		memcpy(s1 + strlen(s1), s2, strlen(s2));
+    debug_print("New string s1: %s\n", s1);
+	} else {
+		return NULL;
+	}
 }

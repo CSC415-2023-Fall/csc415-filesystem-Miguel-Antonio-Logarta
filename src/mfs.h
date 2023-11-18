@@ -55,7 +55,7 @@ typedef struct
 	/*****TO DO:  Fill in this structure with what your open/read directory needs  *****/
 	unsigned short  d_reclen;		/* length of this record */
 	unsigned short	dirEntryPosition;	/* which directory entry position, like file pos */
-	directory_entry* directory; // This is our loaded directory
+	directory_entry *directory; // This is our loaded directory
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
 	char absolutePath[MAX_PATH];	// Stores our absolute path to this directory
 } fdDir;
@@ -70,6 +70,7 @@ int fs_rmdir(const char *pathname);
 // Directory iteration functions
 fdDir * fs_opendir(const char *pathname);
 fdDir * fs_opendirV2(const char *pathname);
+fdDir * fs_createFdDir(directory_entry *directoryContents, const char *absolutePath);			// Reads directory entry and returns it as fdDir
 struct fs_diriteminfo *fs_readdir(fdDir *dirp);
 int fs_closedir(fdDir *dirp);
 
@@ -101,7 +102,6 @@ int writeTestFiles();
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize);
-fdDir *loadDir(directory_entry* de);
 
 /* Wrapper functions for memory allocation */
 void *fs_malloc(size_t size, const char *failMsg);
@@ -109,8 +109,11 @@ unsigned char *fs_malloc_buff(size_t size, uint64_t blockSize, const char *failM
 void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, const char *failMsg);
 
 /* Wrapper functions for LBAread and LBAwrite*/
-unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg);
+// unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg);
+unsigned char* fs_LBAread(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg);
 void fs_LBAwrite(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char *failMsg);
+
+char* concatStrings(char* s1, char* s2, size_t size);
 
 #endif
 

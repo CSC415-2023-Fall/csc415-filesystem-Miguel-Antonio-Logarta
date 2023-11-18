@@ -7,22 +7,30 @@
 
 VCB *fs_getvcb() {
   // Returns Volume Control Block and caches the result to g_vcb
-	if (g_vcb != NULL) {
-		return g_vcb;
-	}
 
-	// Allocate the VCB
-	g_vcb = fs_malloc(sizeof(VCB), "Unable to malloc VCB");
-  unsigned char *buffer = fs_LBAread(sizeof(VCB), MINBLOCKSIZE, 1, 0, "Unable to read VCB from disk");
-  memcpy(g_vcb, buffer, sizeof(VCB));
-	
-  free(buffer);
+  // If g_vcb is not initialized, read vcb from the disk and cache it
+  if (g_vcb == NULL) {
+    g_vcb = fs_malloc(sizeof(VCB), "Unable to malloc VCB");
+    unsigned char *buffer = fs_malloc(MINBLOCKSIZE, "Unable to malloc read buffer");
+    buffer = fs_LBAread(buffer, 1, 0, "Unable to read VCB from disk");
+    memcpy(g_vcb, buffer, sizeof(VCB));
+    
+    free(buffer);
+  }
 
-  return g_vcb;
+  // Make a copy of g_vcb and return it
+  VCB* vcbCopy = fs_malloc(sizeof(VCB), "Unable to malloc copy of VCB");
+  memcpy(vcbCopy, g_vcb, sizeof(VCB));
+
+  return vcbCopy;
 }
 
 VCB *fs_writevcb(VCB* vcb) {
   // Writes the Volume Control Block to disk and caches the new VCB to g_vcb
+
+  if (g_vcb == NULL) {
+    g_vcb = fs_malloc(sizeof(VCB), "Unable to malloc g_vcb");
+  }
 
   // Replace g_vcb with new VCB
   /*
