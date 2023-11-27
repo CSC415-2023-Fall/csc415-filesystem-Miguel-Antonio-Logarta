@@ -711,8 +711,8 @@ void processcommand (char * cmd)
 
 
 void test() {
-		printf("\n----------------------------------\nTesting...\n---------------------------------\n");
-    char* testFilename = "testfile.txt";
+		printf("\n----------------------------------\nTesting...\n----------------------------------\n");
+    char* testFilename = "/testfile.txt";
     char* writeData = "Hello, File System!";
     char readData[100]; // Buffer to read data into
 
@@ -730,8 +730,6 @@ void test() {
         b_close(fd);
         return;
     }
-
-    
 
     // Open the file for reading
     fd = b_open(testFilename, O_RDONLY);

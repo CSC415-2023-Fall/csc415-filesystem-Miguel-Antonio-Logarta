@@ -31,8 +31,6 @@
 #define B_CHUNK_SIZE 512
 
 
- 
-
 typedef struct b_fcb {
   /** TODO add al the information you need in the file control block **/
   char *buf;  // holds the open file buffer
@@ -103,6 +101,7 @@ int getFileSize(int location) {
 int createFile(char* pathName) {
     fdDir *fdD;
     VCB* vcb = g_vcb;
+    char * fileName = malloc(100);
     char *dirBuffer = malloc(vcb->block_size);
     if (!dirBuffer) {
         printf("Memory allocation failed for dirBuffer\n");
@@ -110,43 +109,64 @@ int createFile(char* pathName) {
     }
 
     if (strchr(pathName, '/') != NULL) {
-        // Copy the pathName to a new buffer so it can be modified
-        char *pathCopy = strdup(pathName);
-        if (!pathCopy) {
-            printf("Memory allocation failed for pathCopy\n");
-            free(dirBuffer);
-            return -1; // Indicate failure
-        }
+      
+      // Copy the pathName to a new buffer so it can be modified      
+      char *pathCopy = strdup(pathName);
+      if (!pathCopy) {
+          printf("Memory allocation failed for pathCopy\n");
+          free(dirBuffer);
+          return -1; // Indicate failure
+      }
 
-        // Find the last occurrence of '/'
-        char *lastSlash = strrchr(pathCopy, '/');
-        if (lastSlash != NULL) {
-            *lastSlash = '\0';  // Cut the path at the last '/'
-        }
-
-        fdD = fs_opendir(lastSlash ? pathCopy : "/");
-        free(pathCopy); // Free the path copy after use
+      // Find the last occurrence of '/'
+      char *lastSlash = strrchr(pathCopy, '/');
+      if (lastSlash != NULL) {
+          if (lastSlash != pathCopy) {  // Check if it's not the root directory
+              *lastSlash = '\0';  // Cut the path at the last '/'
+          } else {
+              // If it's the root directory, keep it as is
+              strcpy(fileName, lastSlash+1);
+              *(lastSlash + 1) = '\0';
+          }
+          fdD = fs_opendir(pathCopy);
+          free(pathCopy); // Free the path copy after use
     } else {
         fdD = g_fs_cwd;
+        printf("Curren Directory: %s", fdD->directory->name);
     }
-
-    if (fdD == NULL) {
+    if (fdD == NULL) {  
         printf("Path not found\n");
         free(dirBuffer);
         return -1; // Indicate failure
     }
 
-    LBAread(dirBuffer, 1, fdD->dirEntryPosition);
+    LBAread(dirBuffer, 1, fdD->directory->block_location);
     directory_entry *DE = malloc(sizeof(directory_entry));
+    
     if (!DE) {
         printf("Memory allocation failed for directory entry\n");
         free(dirBuffer);
         return -1; // Indicate failure
     }
 
+    //setting uo the DE
     DE->block_location = UseNextFreeBlock(NULL);
+    DE->is_directory=0;
+    DE->file_size=0;
+    time_t currentTime;
+    time(&currentTime); // Get the current time
+    DE->date_created = currentTime;
+    DE->last_modified = currentTime;
+    strcpy(DE->name, fileName);
+    
+    //copy the new DE into its parent Direcotry
+    memcpy(dirBuffer+fdD->directory->file_size, DE, sizeof(directory_entry));
+    LBAwrite(dirBuffer, 1, fdD->directory->block_location);
+    
     free(dirBuffer);
     free(DE);
+    free(fileName);
+
     return 0; // Assuming 0 indicates success
 }
 
@@ -180,7 +200,7 @@ b_io_fd b_open(char *filename, int flags) {
     
 
     // Additional logic for handling file open based on flags
-    if (flags = O_WRONLY | O_CREAT) {
+    if (flags == O_WRONLY | O_CREAT) {
         // If the file is opened in write-only or create mode, handle as needed
         createFile(filename);
     } 
@@ -204,7 +224,7 @@ b_io_fd b_open(char *filename, int flags) {
         fcbArray[returnFd].location = DE->block_location;
         fcbArray[returnFd].fileSize = DE->file_size;
         fcbArray[returnFd].currentBlock = fcbArray[returnFd].location;
-
+        
         free(DE); // Free the directory entry after use
     
 

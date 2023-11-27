@@ -112,8 +112,9 @@ run: $(FSSHELL)
 vrun: $(FSSHELL)
 	valgrind $(VALGRINDOPTIONS) ./$(FSSHELL) $(RUNOPTIONS)
 
-gdb: $(ROOTNAME)$(HW)$(FOPTION)
-	gdb --args ./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
+#gdb
+gdb:	$(FSSHELL)
+	gdb	--args	./$(FSSHELL)	$(RUNOPTIONS)
 
 # Run debug
 debug: $(D_FSSHELL)

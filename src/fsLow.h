@@ -45,6 +45,7 @@
 #ifndef _FS_LOW_H
 #define _FS_LOW_H
 
+
 #ifndef uint64_t
 typedef u_int64_t uint64_t;
 #endif
@@ -53,48 +54,6 @@ typedef u_int32_t uint32_t;
 #endif
 typedef unsigned long long ull_t;
 
-extern int firstFreeBlock;
-// This struct is exactly 64 bytes
-typedef struct VCB_s {
-	uint64_t magic_signature;
-  uint64_t volume_size;
-  uint64_t block_size;
-  uint64_t num_blocks;
-  uint64_t FAT_start;
-  uint64_t FAT_length;
-  uint64_t DE_start;
-  uint64_t DE_length;
-} VCB;
-
-// This struct is exactly 32 bits/4 bytes
-// 30 bits allows us to address up to 2^30 lba blocks
-typedef struct FAT_block_s {
-  unsigned int in_use: 1;
-  unsigned int end_of_file: 1;
-  unsigned int next_lba_block: 30;
-} FAT_block;
-
-extern FAT_block* freeSpaceList;
-
-// This is exactly 64 bytes
-/*
-  In a FAT file system, files and directories are stored in the same way.
-  The only way to differentiate them is with the is_directory bit.
-  If is_directory == 0, read it like a normal file
-  Else if is_directory == 1, treat the directory entry's associated lba
-    block like a sequence of more directory entries
-*/ 
-typedef struct directory_entry_s {
-  unsigned char is_directory;   // 1 byte. We have 8 bits, so maybe we can use this to set attributes for later
-  char name[31];          // 31 bytes
-  uint64_t block_location;  // 8 bytes
-  size_t file_size;     // 8 bytes
-  time_t date_created; // 8 bytes
-  time_t last_modified; // 8 bytes
-} directory_entry;
-
-// Unitialized global variables that store our state
-extern VCB* g_vcb;
 
 int createPartition(char *filename, uint64_t *volSize, uint64_t *blockSize);
 
