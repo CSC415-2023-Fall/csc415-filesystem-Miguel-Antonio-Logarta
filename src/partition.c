@@ -8,6 +8,7 @@
 // Initialize global variables to NULL
 VCB* g_vcb = NULL;
 FAT_block* g_FAT = NULL;
+// fdFAT* g_FAT = NULL;
 
 VCB *fs_getvcb() {
   // Returns Volume Control Block and caches the result to g_vcb
@@ -69,10 +70,8 @@ FAT_block *fs_getFAT() {
   if (g_FAT == NULL) {
     unsigned char* buffer = fs_malloc_buff(vcb->FAT_length*vcb->block_size, vcb->block_size, "Unable to malloc FAT buffer");
     fs_LBAread(buffer, vcb->FAT_length, vcb->FAT_start, "Unable to read FAT");
-
     g_FAT = fs_malloc(sizeof(FAT_block)*vcb->num_blocks, "Unable to malloc g_FAT");
     memcpy(g_FAT, buffer, sizeof(FAT_block)*vcb->num_blocks);
-    
     free(buffer);
   }
 
@@ -114,4 +113,29 @@ FAT_block *fs_writeFAT(FAT_block* fat, uint64_t numBlocks) {
 
 void fs_freefat(FAT_block* fat) {
 	free(fat);
+}
+
+int fs_findFreeBlock(FAT_block* fat) {
+  int numBlocks = fs_getFATLength();
+  for (int i = 0; i < numBlocks; i++) {
+    if (fat[i].in_use == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int fs_getFATLength() {
+  VCB* vcb = fs_getvcb();
+  int length = vcb->FAT_length;
+  fs_freevcb(vcb);
+  return length;
+}
+
+int fs_getLBABlock(int FATIndex){
+  // Returns lba block that is mapped to the FATIndex
+  VCB* vcb = fs_getvcb();
+  int startPos = vcb->FAT_length + vcb->FAT_start;  // FATIndex 0, or the first block after the FAT table.
+  fs_freevcb(vcb);
+  return startPos + FATIndex;
 }

@@ -113,6 +113,7 @@ uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize);
 char* fs_formatPathname(const char* oldPath, const char* newPath);
+char* fs_getLastToken(const char* path);
 
 /* Wrapper functions for memory allocation */
 void *fs_malloc(size_t size, const char *failMsg);

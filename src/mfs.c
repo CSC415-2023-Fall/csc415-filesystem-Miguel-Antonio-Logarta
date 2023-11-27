@@ -11,8 +11,143 @@
 // Store out current working directory in memory
 fdDir *g_fs_cwd = NULL;
 
-int fs_mkdir(const char *pathname, mode_t mode);
-int fs_rmdir(const char *pathname);
+int fs_mkdir(const char *pathname, mode_t mode) {
+  /* Creates a directory. Returns 0 if sucecssful 
+      TODO: Check file permissions with mode param
+  */
+
+  // Check if directory already exists
+  // Search for free block in FAT
+  // mark in_use = 1
+    // If the file is bigger than 512 bytes, we're going to need to put this into a loop
+  // Create directory entry
+  // Write directory entry into thefree block
+  // Read the parent directory
+  // Insert pointer to new directory in parent directory
+  // Write the parent directory
+  // Write the new directory
+
+  char* startingPath = fs_malloc(MAX_PATH, "Unable to malloc startingPath");
+  char* formattedPath;
+  char* newDirName;
+  FAT_block* FAT;
+  int freeBlock;
+  int numBlocks;
+  int LBAoffset;
+  unsigned char* writeBuffer;
+  directory_entry* newDirectory;
+
+  // Check if relative or absolute path
+  if (pathname[0] == '/') {
+    // This is an absolute path, 
+    strncpy(startingPath, pathname, MAX_PATH);
+    concatStrings(startingPath, "/", MAX_PATH);
+  } else {
+    // This is a relative path
+
+    // Get cwd and append it with path
+    startingPath = malloc(MAX_PATH);
+    startingPath = fs_getcwd(startingPath, MAX_PATH);
+
+    concatStrings(startingPath, "/", MAX_PATH);
+    concatStrings(startingPath, pathname, MAX_PATH);
+  }
+
+  // Check if directory exists. If it exists, cancel
+  formattedPath = fs_formatPathname(startingPath, ".");
+  fdDir* dirExists = fs_opendir(formattedPath);
+  if (dirExists != NULL && dirExists->directory->is_directory == 1) {
+    printf("Directory already exists!\n");
+    free(startingPath);
+    free(formattedPath);
+    fs_closedir(dirExists);
+    return -1;
+  }
+
+  // Get the directory name
+  newDirName = fs_getLastToken(formattedPath);
+
+  // Find free block in FAT table
+  FAT = fs_getFAT();
+  freeBlock = fs_findFreeBlock(FAT);
+  numBlocks = fs_getFATLength();
+  if (freeBlock < 0) {
+    printf("No available remaining space!\n");
+    free(startingPath);
+    free(formattedPath);
+    fs_closedir(dirExists);
+    fs_freefat(FAT);
+    return -1;
+  }
+
+  // Reserve the block for writing
+  FAT[freeBlock].in_use = 1;
+  FAT[freeBlock].end_of_file = 1;
+  fs_writeFAT(FAT, numBlocks);
+
+  LBAoffset = fs_getLBAblock(freeBlock);
+
+  newDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc new directory");
+  newDirectory->block_location = LBAoffset;
+  newDirectory->date_created = time(0);
+  newDirectory->file_size = sizeof(directory_entry);
+  newDirectory->is_directory = 1;
+  newDirectory->last_modified = time(0);
+  strncpy(newDirectory->name, newDirName, MAX_PATH);
+  
+  // TODO: Link new dir to parent dir
+  // TODO: Link parent to new dir
+  
+  writeBuffer = fs_malloc_buff(sizeof(directory_entry), 512, "Unable to malloc buffer");
+  memset(writeBuffer, '\0', 512);
+  memcpy(writeBuffer, newDirectory, sizeof(newDirectory));
+  fs_LBAwrite(writeBuffer, 1, LBAoffset, "Unable to write to disk");
+
+}
+
+int fs_rmdir(const char *pathname) {
+  // Check if directory exists
+  
+  // If directory exists check if there are subdirectories or files
+
+  // Get starting FAT index from lba block number
+  // while eof != true
+    // set current index in_use=0
+    // Go to next address
+  
+  // Read parent directory
+  // Remove directory from parent
+  // Write modified parent directory back to disk
+}
+
+char* fs_getLastToken(const char* path) {
+  // Recieves a pathname and returns the last folder/file of that path
+  char* destinationPath;
+  char* filename;
+  int strPos;
+  int filenameLength;
+
+  // Get the name of the file/directory. It is the last token
+  destinationPath = fs_formatPathname(path, ".");
+  filename = fs_malloc(MAX_PATH, "Unable to malloc filename");
+  strPos = strlen(destinationPath);
+  filenameLength = 0;
+
+  // Start from the end of the string until we encounter the first slash
+  while (destinationPath[strPos] != '/' && strPos >= 0) {
+    filenameLength++;
+    strPos--;
+  }
+
+  // Copy the characters after the slash
+  // TODO: Bug test this
+  memset(filename, '\0', MAX_PATH);
+  strncpy(filename, destinationPath + strPos + 1, filenameLength);
+
+  free(destinationPath);
+
+  return filename; 
+}
 
 fdDir *fs_createFdDir(directory_entry *de, const char *absolutePath, char *dirContent) {
   // debug_print("absolute path recieved: %s\n", absolutePath);
@@ -748,7 +883,10 @@ int writeTestFiles() {
   parentDir->date_created = rootDir->date_created;
   parentDir->last_modified = rootDir->last_modified;
 
-  homeDir->block_location = 155;
+  // debug_print("Start of lba blocks: %ld\n", vcb->DE_start);
+  // debug_print("End of FAT: %ld\n", vcb->FAT_length + vcb->FAT_start - 1);
+
+  homeDir->block_location = 155; 
   strncpy(homeDir->name, "Home", sizeof(homeDir->name) / sizeof(homeDir->name[0]));
   homeDir->is_directory = 1;
   homeDir->file_size = sizeof(directory_entry) * 4; // We are inserting 2 subdirectories into the directory

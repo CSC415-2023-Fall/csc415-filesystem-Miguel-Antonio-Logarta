@@ -68,7 +68,14 @@ typedef struct directory_entry_s {
   time_t last_modified;
 } directory_entry;
 
-typedef unsigned int lba_block;
+// Relevant information to keep track of a FAT Table
+// typedef struct fdFAT_s {
+//   FAT_block* FAT;
+//   unsigned int block_size;        // Minimum block size of partition in bytes
+//   unsigned int num_blocks;        // Total number of blocks in partition
+//   unsigned int FAT_start;         // Starting lba position of File Allocation Table
+//   unsigned int FAT_length;        // Number of lba blocks the File Allocation Tables takes
+// } fdFAT;
 
 /* 
 	Global variables to hold vcb and FAT in memory. 
@@ -77,6 +84,7 @@ typedef unsigned int lba_block;
 */
 extern VCB *g_vcb;
 extern FAT_block *g_FAT;
+// extern fdFAT *g_FAT;
 
 /* Volume Partition Control */
 VCB *fs_getvcb();
@@ -85,7 +93,9 @@ void fs_freevcb(VCB* vcb);
 FAT_block *fs_getFAT();
 FAT_block *fs_writeFAT(FAT_block* fat, uint64_t numBlocks);
 void fs_freefat(FAT_block* fat);
-lba_block findFreeBlock();
-
+// int fs_findFreeBlock(fdFAT* fdFat);
+int fs_findFreeBlock(FAT_block* fat);
+int fs_getFATLength();
+int fs_getLBAblock(int FATIndex);
 
 #endif
