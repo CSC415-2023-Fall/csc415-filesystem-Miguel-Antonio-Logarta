@@ -54,7 +54,7 @@ typedef struct
 	//DE *	directory;			/* Pointer to the loaded directory you want to iterate */
 	// directory_entry* directory; // This is our loaded directory
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
-} fdDir;
+}   fdDir;
 
 // Global uninitialized variables to store our state
 extern fdDir* g_fs_cwd;	// Stores our current working directory

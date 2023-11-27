@@ -49,6 +49,7 @@ typedef u_int32_t uint32_t;
 #endif
 typedef unsigned long long ull_t;
 
+extern int firstFreeBlock;
 // This struct is exactly 64 bytes
 typedef struct VCB_s {
 	uint64_t magic_signature;
@@ -68,6 +69,8 @@ typedef struct FAT_block_s {
   unsigned int end_of_file: 1;
   unsigned int next_lba_block: 30;
 } FAT_block;
+
+extern FAT_block* freeSpaceList;
 
 // This is exactly 64 bytes
 /*

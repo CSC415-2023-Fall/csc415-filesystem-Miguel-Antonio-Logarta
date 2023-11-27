@@ -1,21 +1,12 @@
-<<<<<<< HEAD
-=======
 #ifndef _DEBUG_H
 #define _DEBUG_H
 
 #include "fsLow.h"
 
->>>>>>> origin/Miguel
 #define DEBUG 1
 
 // Debug statements that will only compile when the debug flag is on
 #ifdef DEBUG
-<<<<<<< HEAD
-# define DEBUG_PRINT(x) printf x
-#else
-# define DEBUG_PRINT(x) do {} while (0)
-#endif
-=======
 #define DEBUG_PRINT(x) printf x
 #else
 #define DEBUG_PRINT(x) do {} while (0)
@@ -34,4 +25,3 @@ void printVCB(VCB* vcb) {
 }
 
 #endif
->>>>>>> origin/Miguel
