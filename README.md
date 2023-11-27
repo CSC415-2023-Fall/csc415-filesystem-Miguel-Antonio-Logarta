@@ -138,6 +138,12 @@ What needs to be submitted (via GitHub and iLearn):
 * 	Your volume file (limit 10MB)
 *  There will also be an INDIVIDUAL report (form) to complete.
 
-
+# Useful resources for the team
+https://pubs.opengroup.org/onlinepubs/009604599/functions/stat.html
+https://man7.org/linux/man-pages/man3/readdir.3.html
+https://man7.org/linux/man-pages/man3/opendir.3.html
+https://www.mkssoftware.com/docs/man5/struct_stat.5.asp
+https://pubs.opengroup.org/onlinepubs/7908799/xsh/dirent.h.html
+https://www.gnu.org/software/libc/manual/html_node/Accessing-Directories.html
 
 

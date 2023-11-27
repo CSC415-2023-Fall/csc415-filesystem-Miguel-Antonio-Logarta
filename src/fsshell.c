@@ -45,7 +45,7 @@
 #define CMDRM_ON	0
 #define CMDCP2L_ON	0
 #define CMDCP2FS_ON	0
-#define CMDCD_ON	0
+#define CMDCD_ON	1
 #define CMDPWD_ON	1
 #define CMDTOUCH_ON	0
 #define CMDCAT_ON	0
@@ -92,8 +92,7 @@ dispatch_t dispatchTable[] = {
 static int dispatchcount = sizeof (dispatchTable) / sizeof (dispatch_t);
 
 // Display files for use by ls command
-int displayFiles (fdDir * dirp, int flall, int fllong)
-	{
+int displayFiles (fdDir * dirp, int flall, int fllong) {
 #if (CMDLS_ON == 1)				
 	if (dirp == NULL)	//get out if error
 		return (-1);
@@ -101,29 +100,43 @@ int displayFiles (fdDir * dirp, int flall, int fllong)
 	struct fs_diriteminfo * di;
 	struct fs_stat statbuf;
 	
-	di = fs_readdir (dirp);
-	printf("\n");
-	while (di != NULL) 
-		{
-		if ((di->d_name[0] != '.') || (flall)) //if not all and starts with '.' it is hidden
-			{
-			if (fllong)
-				{
-					printf("%s\n", di->d_name);
-				// fs_stat (di->d_name, &statbuf);
-				// printf ("%s    %9ld   %s\n", fs_isDir(di->d_name)?"D":"-", statbuf.st_size, di->d_name);
-				}
-			else
-				{
-				printf ("%s\n", di->d_name);
-				}
+	di = fs_readdir(dirp);
+	// debug_print("di name: %ld %s\n", di->block_location, di->d_name);
+	// printf("\n");
+
+	while (di != NULL)  {
+		if ((di->d_name[0] != '.') || (flall)) { //if not all and starts with '.' it is hidden
+			if (fllong) {
+					// Show information about each directory / file
+					// printf("fllong - %s\n", di->d_name);
+					
+					// debug_print("Error here maybe?");
+					// debug_print("%s\n", di->d_name);
+
+					int result = fs_stat(di->d_name, &statbuf);
+					if (result != 0) {
+						debug_print("There was an error calling fs_stat for this directory\n");
+						break;
+					} else {
+						// printf("%ld    %9ldB   %s\n", statbuf.st_blocks, statbuf.st_size, di->d_name);
+					printf("%s %9ldB %s\n", fs_isDir(di->d_name)?"D":"-", statbuf.st_size, di->d_name);
+					}
+			} else {
+					// Just show the file and directory names
+					printf("%s ", di->d_name);
 			}
-		di = fs_readdir (dirp);
 		}
+
+		di = fs_readdir (dirp);
+	}
+
+	//
+	// debug_print("Closing dirp\n");
+	printf("\n");
 	fs_closedir (dirp);
 #endif
 	return 0;
-	}
+}
 	
 
 /****************************************************
@@ -202,7 +215,7 @@ int cmd_ls (int argcnt, char *argvec[])
 		//processing arguments after options
 		for (int k = optind; k < argcnt; k++)
 			{
-			if (fs_isDir(argvec[k]))
+			if (fs_isDir(argvec[k]))	// If the user specifies a directory ex: "ls Home"
 				{
 				fdDir * dirp;
 				dirp = fs_opendir (argvec[k]);
@@ -225,9 +238,10 @@ int cmd_ls (int argcnt, char *argvec[])
 	else   // no pathname/filename specified - use cwd
 		{
 		char * path = fs_getcwd(cwd, DIRMAX_LEN);	//get current working directory
+		// debug_print("current working directory %s\n", path);
 		fdDir * dirp;
 		dirp = fs_opendir (path);
-		printf("ls called! %s\n", dirp->directory->name);
+		// debug_print("ls called! %s\n", dirp->directory->name);
 		return (displayFiles (dirp, flall, fllong));
 		}
 #endif
@@ -822,58 +836,7 @@ int main (int argc, char * argv[])
 
 	// Set cwd to root
 	int cwdReturn = fs_setcwd("/");
-	// int dcwd = fs_setcwd("/");
 
-	// fdDir* testDir;	
-	// testDir = fs_opendirV2(NULL);		// NULL
-	// // vvvv should say pathname exceeds MAX_PATH
-	// testDir = fs_opendirV2("Life is a journey filled with twists and turns. It's a continuous adventure where we learn, grow, and experience the beauty of the world. Every day presents new opportunities and challenges, and it's up to us to make the most of them. Embrace the unknown, cherish the moments, and strive to be the best version of yourself. In this journey, remember that kindness, empathy, and love are the guiding stars that illuminate the path. So, let's keep moving forward with an open heart and a curious mind, making the most of every step we take.");
-	
-	// // fs_setcwd("/");
-	// testDir = fs_opendirV2(""); // Return root directory
-	// testDir = fs_opendirV2("/");
-	
-	// if (testDir == NULL) {
-	// 	debug_print("testdir is null. pass!\n");
-	// } else {
-	// 	debug_print("testdir is not null: %s fail!\n", testDir->absolutePath);
-	// }
-
-	// testDir = fs_opendirV2("Home/misc");	// cwd not initialized yet!
-	// testDir = fs_opendirV2("/Home/misc");	// misc folder does not exist
-	// testDir = fs_opendirV2("/Home/Misc");	// Success
-	// testDir = fs_opendirV2(".......");			// Path ...... not found
-
-	// testDir = fs_opendirV2("////////");			// Return root
-	// debug_print("dir: %s fail!\n", testDir->absolutePath);
-	// fs_closedir(testDir);
-	// testDir = fs_opendirV2("////..////");			// Return root
-	// debug_print("testdir is not null: %s fail!\n", testDir->absolutePath);
-	// fs_closedir(testDir);
-	// testDir = fs_opendirV2("");							// Return root
-	// debug_print("testdir is not null: %s fail!\n", testDir->absolutePath);
-	// fs_closedir(testDir);
-	// free(testDir->directory);
-	// free(testDir);
-	// fs_closedir(testDir);
-	
-
-	// fdDir* testDir;	
-	// testDir = fs_opendirV2(NULL); // DONE
-	// testDir = fs_opendirV2("Life is a journey filled with twists and turns. It's a continuous adventure where we learn, grow, and experience the beauty of the world. Every day presents new opportunities and challenges, and it's up to us to make the most of them. Embrace the unknown, cherish the moments, and strive to be the best version of yourself. In this journey, remember that kindness, empathy, and love are the guiding stars that illuminate the path. So, let's keep moving forward with an open heart and a curious mind, making the most of every step we take."); // DONE
-	// testDir = fs_opendirV2(""); // DONE
-	// testDir = fs_opendirV2("Home/misc"); //DONE
-
-	// debug_print("<<<<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-	// testDir = fs_opendirV2("/Home/misc");
-	// // testDir = fs_opendirV2("/Home/Misc");
-	// if (testDir != NULL) {
-	// 	free(testDir->directory);
-	// 	free(testDir);
-	// }
-	
-	// int cwdReturn = fs_opendirV2("/");
-	// int cwdReturn = -1;
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");
 	} else {
@@ -898,7 +861,9 @@ int main (int argc, char * argv[])
 			
 			if (strcmp (cmd, "exit") == 0)
 				{
+				free(cwd);
 				free (cmd);
+				cwd = NULL;
 				cmd = NULL;
 				exitFileSystem();
 				closePartitionSystem();
@@ -915,8 +880,10 @@ int main (int argc, char * argv[])
 					}
 				processcommand (cmd);
 				}
-					
+			
+			free(cwd);
 			free (cmd);
+			cwd = NULL;
 			cmd = NULL;		
 		} // end while
 

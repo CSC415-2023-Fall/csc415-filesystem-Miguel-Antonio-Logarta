@@ -26,6 +26,8 @@
 #define FT_DIRECTORY DT_DIR
 #define FT_LINK	DT_LNK
 
+#include <sys/stat.h>
+
 #ifndef uint64_t
 typedef u_int64_t uint64_t;
 #endif
@@ -39,10 +41,17 @@ typedef u_int32_t uint32_t;
 // about each file as it iterates through a directory
 struct fs_diriteminfo
 {
-    unsigned short d_reclen;    /* length of this record */
-    unsigned char fileType;    	// Is it a directory or a file?
+    unsigned short d_reclen;    /* length of this record */ // Note that this is not the file size, but rather the size of the struct itself
+    unsigned char fileType;    	/* Holds values FT_REGFILE, FT_DIRECTORY, or FT_LINK
+																		Determines if the file is a regular file, directory, or symlink
+																*/
     char d_name[256]; 			/* filename max filename is 255 characters */
-		uint64_t block_location;	// starting lba block of the file
+
+		/* Any other attributes your file system needs */
+		uint64_t block_location;	// Starting LBA block
+		size_t file_size;					// Size of file/directory in bytes
+		time_t date_created;			
+		time_t last_modified;
 };
 
 // This is a private structure used only by fs_opendir, fs_readdir, and fs_closedir
@@ -53,9 +62,10 @@ struct fs_diriteminfo
 typedef struct
 {
 	/*****TO DO:  Fill in this structure with what your open/read directory needs  *****/
-	unsigned short  d_reclen;		/* length of this record */
+	unsigned short  d_reclen;		/* length of this record. Note that this is not the file size, but rather the size of fdDir */
 	unsigned short	dirEntryPosition;	/* which directory entry position, like file pos */
 	directory_entry *directory; // This is our loaded directory
+	unsigned char* dirContent;
 	struct fs_diriteminfo * di;		/* Pointer to the structure you return from read */
 	char absolutePath[MAX_PATH];	// Stores our absolute path to this directory
 } fdDir;
@@ -69,8 +79,7 @@ int fs_rmdir(const char *pathname);
 
 // Directory iteration functions
 fdDir * fs_opendir(const char *pathname);
-fdDir * fs_opendirV2(const char *pathname);
-fdDir * fs_createFdDir(directory_entry *directoryContents, const char *absolutePath);			// Reads directory entry and returns it as fdDir
+fdDir * fs_createFdDir(directory_entry *directoryContents, const char *absolutePath, char* dirContent);			// Reads directory entry and returns it as fdDir
 struct fs_diriteminfo *fs_readdir(fdDir *dirp);
 int fs_closedir(fdDir *dirp);
 
@@ -93,6 +102,7 @@ struct fs_stat
 	time_t    st_createtime;   	/* time of last status change */
 	
 	/* add additional attributes here for your file system */
+	unsigned char st_filetype;	/* Indicates the type of directory entry */
 };
 
 int fs_stat(const char *path, struct fs_stat *buf);
@@ -102,6 +112,7 @@ int writeTestFiles();
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize);
+char* fs_formatPathname(const char* oldPath, const char* newPath);
 
 /* Wrapper functions for memory allocation */
 void *fs_malloc(size_t size, const char *failMsg);
@@ -109,11 +120,10 @@ unsigned char *fs_malloc_buff(size_t size, uint64_t blockSize, const char *failM
 void *fs_realloc(void** oldPtr, size_t newSize, unsigned char returnOldPtr, const char *failMsg);
 
 /* Wrapper functions for LBAread and LBAwrite*/
-// unsigned char* fs_LBAread(size_t size, uint64_t blockSize, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg);
 unsigned char* fs_LBAread(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char* failMsg);
 void fs_LBAwrite(void *buffer, uint64_t lbaCount, uint64_t lbaPosition, const char *failMsg);
 
-char* concatStrings(char* s1, char* s2, size_t size);
+char* concatStrings(char* s1, const char* s2, size_t size);
 
 #endif
 

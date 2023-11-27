@@ -7,6 +7,8 @@
         "mfs.h": "c",
         "string.h": "c",
         "fsdebug.h": "c",
-        "partition.h": "c"
+        "partition.h": "c",
+        "dirent.h": "c",
+        "stat.h": "c"
     },
 }
