@@ -35,16 +35,24 @@
 
 
 ROOTNAME=fsshell
+BUILDPATH=build/
+TESTPATH=tests/
+OBJECTPATH=build/objects/
+SRCPATH=src/
+DEPSPATH=build/deps/
+
 HW=
 FOPTION=
 RUNOPTIONS=SampleVolume 10000000 512
+VALGRINDOPTIONS=--leak-check=full
 CC=gcc
-CFLAGS= -g -I.
-LIBS =pthread
-DEPS = 
+CFLAGS=-g -DRELEASE -I.
+D_CFLAGS=-g -I.
+LIBS=pthread
+DEPS= 
 # Add any additional objects to this list
-ADDOBJ= fsInit.o mfs.o
-ARCH = $(shell uname -m)
+ADDOBJ=fsInit.o mfs.o debug.o partition.o
+ARCH=$(shell uname -m)
 
 ifeq ($(ARCH), aarch64)
 	ARCHOBJ=fsLowM1.o
@@ -52,21 +60,62 @@ else
 	ARCHOBJ=fsLow.o
 endif
 
-OBJ = $(ROOTNAME)$(HW)$(FOPTION).o $(ADDOBJ) $(ARCHOBJ)
+# Create all object files
+# Ex: OBJ = build/fsshell.o build/fsInit.o build/mfs.o fsLow.o 
+OBJ = $(OBJECTPATH)$(ROOTNAME)$(HW)$(FOPTION).o $(addprefix $(OBJECTPATH),$(ADDOBJ)) $(ARCHOBJ)
+FSSHELL = $(BUILDPATH)$(ROOTNAME)$(HW)$(FOPTION)
+FSSHELLOBJ = $(OBJECTPATH)$(ROOTNAME)$(HW)$(FOPTION).o
 
-%.o: %.c $(DEPS)
+# Object files for debugging
+D_OBJ = $(OBJECTPATH)d_$(ROOTNAME)$(HW)$(FOPTION).o $(addprefix $(OBJECTPATH)d_,$(ADDOBJ)) $(ARCHOBJ)
+D_FSSHELL = $(BUILDPATH)d_$(ROOTNAME)$(HW)$(FOPTION)
+D_FSSHELLOBJ = $(OBJECTPATH)d_$(ROOTNAME)$(HW)$(FOPTION).o
+
+# Locate all c files in src and create o files in build/objects/ and
+# Locate all dependencies in build/deps/ and create o files in build/objects
+# $@ is replaced by the target name
+# $< is the name of the first prerequisite
+$(OBJECTPATH)%.o: $(addprefix $(SRCPATH),%.c) $(addprefix $(DEPSPATH),$(DEPS))
 	$(CC) -c -o $@ $< $(CFLAGS) 
 
-$(ROOTNAME)$(HW)$(FOPTION): $(OBJ)
+# Locate all c files and dependencies and compile with debug options
+$(OBJECTPATH)d_%.o: $(addprefix $(SRCPATH),%.c) $(addprefix $(DEPSPATH),$(DEPS))
+	$(CC) -c -o $@ $< $(D_CFLAGS) 
+
+# Create our executable in build/
+# $^ is replaced by all prerequisites. $^ is replaced by $(OBJ) which is a string containing
+# All object files
+# Change path of object file to go into ./objects
+$(FSSHELL): $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) -lm -l readline -l $(LIBS)
 
-clean:
-	rm $(ROOTNAME)$(HW)$(FOPTION).o $(ADDOBJ) $(ROOTNAME)$(HW)$(FOPTION)
+# Compile fsshell with debug options
+$(D_FSSHELL): $(D_OBJ)
+	$(CC) -o $@ $^ $(D_CFLAGS) -lm -l readline -l $(LIBS)
 
-run: $(ROOTNAME)$(HW)$(FOPTION)
-	./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
+# Clean release build
+bclean:
+	$(RM) $(FSSHELLOBJ) $(addprefix $(OBJECTPATH),$(ADDOBJ)) $(FSSHELL)
 
-vrun: $(ROOTNAME)$(HW)$(FOPTION)
-	valgrind ./$(ROOTNAME)$(HW)$(FOPTION) $(RUNOPTIONS)
+# Clean debug build
+dclean:
+	$(RM) $(D_FSSHELLOBJ) $(addprefix $(OBJECTPATH)d_,$(ADDOBJ)) $(D_FSSHELL)
 
+# Clean both release and debug builds
+clean: bclean dclean
 
+# Run release
+run: $(FSSHELL)
+	./$(FSSHELL) $(RUNOPTIONS)
+
+# Run release with valgrind, a memory leak tool
+vrun: $(FSSHELL)
+	valgrind $(VALGRINDOPTIONS) ./$(FSSHELL) $(RUNOPTIONS)
+
+# Run debug
+debug: $(D_FSSHELL)
+	./$(D_FSSHELL) $(RUNOPTIONS) 
+
+# Run debug with valgrind, a memory leak tool
+vdebug: $(D_FSSHELL)
+	valgrind $(VALGRINDOPTIONS) ./$(D_FSSHELL) $(RUNOPTIONS) 

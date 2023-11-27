@@ -1,10 +1,30 @@
 {
 	"version": "2.0.0",
 	"tasks": [
-			{
-					"label": "gcc build active file",
-					"command": "gcc",
-					"args": ["-Wall", "-Werror", "-std=c99", "-g", "-o", "${fileDirname}/${fileBasenameNoExtension}", "${fileDirname}/${fileBasename}"]
-			}
+		{
+			"label": "gcc build active file",
+			"command": "gcc",
+			"args": [
+				"-Wall",
+				"-Werror",
+				"-std=c99",
+				"-g",
+				"-o",
+				"${fileDirname}/${fileBasenameNoExtension}",
+				"${fileDirname}/${fileBasename}"
+			]
+		},
+		{
+			"label": "Hexdump",
+			"type": "shell",
+			"options": {
+				"cwd": "${workspaceFolder}/Hexdump/"
+			},
+			"presentation": {
+				"reveal": "silent"
+			},
+			"command": "make run > output.txt",
+			"problemMatcher": []
+		}
 	]
 }

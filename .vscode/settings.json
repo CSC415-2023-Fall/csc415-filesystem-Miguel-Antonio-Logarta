@@ -6,6 +6,9 @@
         "fslow.h": "c",
         "mfs.h": "c",
         "string.h": "c",
-        "fsdebug.h": "c"
+        "fsdebug.h": "c",
+        "partition.h": "c",
+        "dirent.h": "c",
+        "stat.h": "c"
     },
 }
