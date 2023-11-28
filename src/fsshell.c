@@ -722,7 +722,6 @@ void test() {
         printf("Error opening file for writing.\n");
         return;
     }
-
     // Write data to the file
     int bytesWritten = b_write(fd, writeData, strlen(writeData));
     if (bytesWritten < 0) {

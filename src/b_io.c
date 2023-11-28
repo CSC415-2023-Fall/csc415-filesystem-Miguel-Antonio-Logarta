@@ -24,8 +24,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "mfs.h"
-
-#include "mfs.h"
+#include "partition.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
@@ -130,9 +129,11 @@ int createFile(char* pathName) {
           }
           fdD = fs_opendir(pathCopy);
           free(pathCopy); // Free the path copy after use
-    } else {
+      }
+    } 
+    else {
         fdD = g_fs_cwd;
-        printf("Curren Directory: %s", fdD->directory->name);
+        printf("Current Directory: %s", fdD->directory->name);
     }
     if (fdD == NULL) {  
         printf("Path not found\n");
@@ -150,7 +151,7 @@ int createFile(char* pathName) {
     }
 
     //setting uo the DE
-    DE->block_location = UseNextFreeBlock(NULL);
+    DE->block_location = UseNextFreeBlock(-1);
     DE->is_directory=0;
     DE->file_size=0;
     time_t currentTime;
@@ -203,11 +204,12 @@ b_io_fd b_open(char *filename, int flags) {
     if (flags == O_WRONLY | O_CREAT) {
         // If the file is opened in write-only or create mode, handle as needed
         createFile(filename);
-    } 
+     } 
         // Read mode: Retrieve and store file information in the file control block
         // Open the directory and check if the file exists
-        fdDir *fdD = fs_opendir(filename);
-        if (fdD == NULL) {
+        struct fs_stat * stats;
+        int stateSuccess = fs_stat(filename, stats);
+        if (stateSuccess <-1) {
             printf("Path/file does not exist\n");
             free(fcbArray[returnFd].buf); // Free allocated buffer
             return -1;
@@ -220,7 +222,7 @@ b_io_fd b_open(char *filename, int flags) {
             return -1;
         }
 
-        memcpy(DE, fdD->dirEntryPosition, sizeof(directory_entry));
+        memcpy(DE, , sizeof(directory_entry));
         fcbArray[returnFd].location = DE->block_location;
         fcbArray[returnFd].fileSize = DE->file_size;
         fcbArray[returnFd].currentBlock = fcbArray[returnFd].location;
