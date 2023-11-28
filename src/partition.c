@@ -115,7 +115,7 @@ void fs_freefat(FAT_block* fat) {
 	free(fat);
 }
 
-int fs_findFreeBlock(FAT_block* fat) {
+fat_index fs_findFreeBlock(FAT_block* fat) {
   int numBlocks = fs_getFATLength();
   for (int i = 0; i < numBlocks; i++) {
     if (fat[i].in_use == 0) {
@@ -132,10 +132,22 @@ int fs_getFATLength() {
   return length;
 }
 
-int fs_getLBABlock(int FATIndex){
+lba_offset fs_getLBABlock(fat_index FATIndex){
   // Returns lba block that is mapped to the FATIndex
   VCB* vcb = fs_getvcb();
   int startPos = vcb->FAT_length + vcb->FAT_start;  // FATIndex 0, or the first block after the FAT table.
   fs_freevcb(vcb);
   return startPos + FATIndex;
+}
+
+fat_index fs_getFATIndex(lba_offset lbaOffset) {
+  VCB* vcb = fs_getvcb();
+  
+  // Ex: Root dir is written on lba block 154 which is mapped to FATIndex 0
+  // fatIndex = 154 - 153 - 1 = 0
+  int fatIndex = lbaOffset - vcb->FAT_length - vcb->FAT_start;
+  
+  fs_freevcb(vcb);
+
+  return fatIndex;
 }

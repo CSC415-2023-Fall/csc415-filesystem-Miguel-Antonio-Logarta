@@ -67,16 +67,6 @@ typedef struct directory_entry_s {
   time_t date_created;
   time_t last_modified;
 } directory_entry;
-
-// Relevant information to keep track of a FAT Table
-// typedef struct fdFAT_s {
-//   FAT_block* FAT;
-//   unsigned int block_size;        // Minimum block size of partition in bytes
-//   unsigned int num_blocks;        // Total number of blocks in partition
-//   unsigned int FAT_start;         // Starting lba position of File Allocation Table
-//   unsigned int FAT_length;        // Number of lba blocks the File Allocation Tables takes
-// } fdFAT;
-
 /* 
 	Global variables to hold vcb and FAT in memory. 
 	Holding a cached state eliminates overhead of reading the
@@ -84,18 +74,56 @@ typedef struct directory_entry_s {
 */
 extern VCB *g_vcb;
 extern FAT_block *g_FAT;
-// extern fdFAT *g_FAT;
+
+// Index corresponding to a block in the File Allocation table
+typedef int fat_index;
+typedef int lba_offset;
 
 /* Volume Partition Control */
+
+/* Acquires a copy of the Volume Control Block */
 VCB *fs_getvcb();
+
+/* Writes Volume Control Block to disk. Also overwrites g_vcb */
 VCB *fs_writevcb(VCB* vcb);
+
+/* Frees the Volume Control Block from memory */
 void fs_freevcb(VCB* vcb);
+
+/* Acquires a copy of the File Allocation table */
 FAT_block *fs_getFAT();
+
+/* 
+  Writes File Allocation Table to disk. Also overwrites g_FAT.
+  The length of fat must match numBlocks. 
+  The total number of FATblocks can be acquired by calling fs_getFATLength().
+*/
 FAT_block *fs_writeFAT(FAT_block* fat, uint64_t numBlocks);
+
+/* Frees the File Allocation table from memory */
 void fs_freefat(FAT_block* fat);
-// int fs_findFreeBlock(fdFAT* fdFat);
-int fs_findFreeBlock(FAT_block* fat);
+
+/* 
+  Finds the first available block that is not currently used by the filesystem.
+  Returns a positive index of the first available block, but returns a negative
+  number if there was an error acquiring free space.
+*/
+fat_index fs_findFreeBlock(FAT_block* fat);
+
+/* Acquires the total number of blocks in the File Allocation Table*/
 int fs_getFATLength();
-int fs_getLBAblock(int FATIndex);
+
+/* 
+  Returns the corresponding LBA block number based on the FAT index.
+  Use this in conjunction with fs_findFreeBlock() to get the lba block
+  you want to write your file / directory to.
+*/
+lba_offset fs_getLBABlock(fat_index FATIndex);
+
+/* 
+  Returns the corresponding FAT Index based on the LBA block number.
+  Use this to get the file's lba block you want to read from.
+*/
+fat_index fs_getFATIndex(lba_offset lbaOffset);
 
 #endif

@@ -7,6 +7,7 @@
 #include "fsLow.h"
 #include "mfs.h"
 #include "debug.h"
+#include "partition.h"
 
 // Store out current working directory in memory
 fdDir *g_fs_cwd = NULL;
@@ -85,7 +86,7 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   FAT[freeBlock].end_of_file = 1;
   fs_writeFAT(FAT, numBlocks);
 
-  LBAoffset = fs_getLBAblock(freeBlock);
+  LBAoffset = fs_getLBABlock(freeBlock);
 
   newDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc new directory");
   newDirectory->block_location = LBAoffset;
