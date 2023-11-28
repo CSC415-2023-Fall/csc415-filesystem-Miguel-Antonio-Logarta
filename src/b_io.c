@@ -130,7 +130,9 @@ int createFile(char* pathName) {
           }
           fdD = fs_opendir(pathCopy);
           free(pathCopy); // Free the path copy after use
-    } else {
+      }
+    }
+    else {
         fdD = g_fs_cwd;
         printf("Curren Directory: %s", fdD->directory->name);
     }
