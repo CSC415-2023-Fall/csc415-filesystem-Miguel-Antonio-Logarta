@@ -51,7 +51,7 @@ D_CFLAGS=-g -I.
 LIBS=pthread
 DEPS= 
 # Add any additional objects to this list
-ADDOBJ=fsInit.o mfs.o debug.o partition.o
+ADDOBJ=fsInit.o mfs.o debug.o partition.o b_io.o
 ARCH=$(shell uname -m)
 
 ifeq ($(ARCH), aarch64)
@@ -111,6 +111,10 @@ run: $(FSSHELL)
 # Run release with valgrind, a memory leak tool
 vrun: $(FSSHELL)
 	valgrind $(VALGRINDOPTIONS) ./$(FSSHELL) $(RUNOPTIONS)
+
+#gdb
+gdb:	$(FSSHELL)
+	gdb	--args	./$(FSSHELL)	$(RUNOPTIONS)
 
 # Run debug
 debug: $(D_FSSHELL)

@@ -28,6 +28,8 @@
 
 // Keep VCB in memory
 // VCB* g_vcb = NULL;
+FAT_block* freeSpaceList = NULL;
+int firstFreeBlock;
 
 // For writing root directory
 struct initRootDirectory {
@@ -102,6 +104,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   // FAT table starts at block 1 after the VCB, and takes up FAT_length blocks
   vcb->FAT_start = 1;
   vcb->FAT_length = blocksNeeded;
+
 
   // Initialize FAT blocks
   for (int i = 0; i < blocksNeeded*blockSize; i++) {
@@ -191,6 +194,20 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   // memcpy(g_vcb, vcb, sizeof(VCB));
   // *g_vcb = *vcb;
   // printf("This is our global VCB in memory: %ld\n", g_vcb->DE_start);
+
+  freeSpaceList = (FAT_block*)calloc(blocksNeeded*blockSize, sizeof(FAT_block));
+
+  int firstBlockFlag = 0;
+  // Initialize FAT blocks
+  for (int i = 0; i < blocksNeeded*blockSize; i++) {
+    if (freeSpaceList[i].in_use == 0){
+      if(firstBlockFlag == 0){
+        firstBlockFlag =1;
+        firstFreeBlock = i;
+      }
+      freeSpaceList[i].next_lba_block = i+1;
+    }
+  }
 
   free(buffer);
   free(FATTable);

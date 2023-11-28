@@ -45,6 +45,7 @@
 #ifndef _FS_LOW_H
 #define _FS_LOW_H
 
+
 #ifndef uint64_t
 typedef u_int64_t uint64_t;
 #endif
@@ -52,6 +53,7 @@ typedef u_int64_t uint64_t;
 typedef u_int32_t uint32_t;
 #endif
 typedef unsigned long long ull_t;
+
 
 int createPartition(char *filename, uint64_t *volSize, uint64_t *blockSize);
 

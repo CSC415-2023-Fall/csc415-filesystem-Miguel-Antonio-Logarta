@@ -28,6 +28,7 @@
 
 #include "fsLow.h"
 #include "mfs.h"
+#include "b_io.h"
 #include "debug.h"
 
 #define PERMISSIONS (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
@@ -723,6 +724,50 @@ void processcommand (char * cmd)
 	}
 
 
+void test() {
+		printf("\n----------------------------------\nTesting...\n----------------------------------\n");
+    char* testFilename = "/testfile.txt";
+    char* writeData = "Hello, File System!";
+    char readData[100]; // Buffer to read data into
+
+    // Open the file for writing (and create it if it doesn't exist)
+    b_io_fd fd = b_open(testFilename, O_WRONLY | O_CREAT);
+    if (fd < 0) {
+        printf("Error opening file for writing.\n");
+        return;
+    }
+
+    // Write data to the file
+    int bytesWritten = b_write(fd, writeData, strlen(writeData));
+    if (bytesWritten < 0) {
+        printf("Error writing to file.\n");
+        b_close(fd);
+        return;
+    }
+
+    // Open the file for reading
+    fd = b_open(testFilename, O_RDONLY);
+    if (fd < 0) {
+        printf("Error opening file for reading.\n");
+        return;
+    }
+
+    // Read data from the file
+    int bytesRead = b_read(fd, readData, sizeof(readData) - 1); // Leave space for null terminator
+    if (bytesRead < 0) {
+        printf("Error reading from file.\n");
+        //b_close(fd);
+        return;
+    }
+
+    // Null terminate the string read
+    //readData[bytesRead] = '\0';
+
+  
+
+    // Output the read data
+    printf("Data read from file: %s\n", readData);
+}
 
 int main (int argc, char * argv[])
 	{
@@ -840,6 +885,10 @@ int main (int argc, char * argv[])
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");
 	} else {
+
+			//testing 
+			test();
+
 		while (1)
 		{
 			char* cwd = fs_getcwd(NULL, 0);

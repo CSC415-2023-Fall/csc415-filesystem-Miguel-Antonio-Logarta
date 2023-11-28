@@ -1311,6 +1311,6 @@ char* concatStrings(char* s1, const char* s2, size_t size) {
 		memcpy(s1 + strlen(s1), s2, strlen(s2));
     // debug_print("New string s1: %s\n", s1);
 	} else {
-		return NULL;
+	  return NULL;
 	}
 }

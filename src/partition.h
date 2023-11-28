@@ -21,6 +21,10 @@
 
 #include "fsLow.h"
 
+
+extern int firstFreeBlock;
+
+
 /* 
 	Volume Control Block: 64 bytes
 	This struct is responsible for storing information about a partition
@@ -48,6 +52,8 @@ typedef struct FAT_block_s {
   unsigned int end_of_file: 1;
   unsigned int next_lba_block: 30;
 } FAT_block;
+
+extern FAT_block* freeSpaceList;
 
 /*
 	Directory Entry: 64 bytes
