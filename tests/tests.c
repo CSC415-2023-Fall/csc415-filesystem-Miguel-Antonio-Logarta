@@ -11,3 +11,63 @@
 // free(testDir->directory);
 // free(testDir);
 	
+#include "tests.h"
+#include "mfs.h"
+#include <assert.h>
+
+void runTestFiles() {
+	char* formattedPath;
+
+	char* formattedPath;
+	formattedPath = fs_formatPathname("/home/misc", "/home");
+	assert(strcmp(formattedPath, "/home") == 0);
+	free(formattedPath);
+
+	// Test relative path
+	formattedPath = fs_formatPathname("/home/misc", "inside");
+	assert(strcmp(formattedPath, "/home/misc/inside") == 0);
+	free(formattedPath);
+
+	// Test leading / for first arg
+	formattedPath = fs_formatPathname("/home/misc/", "inside");
+	assert(strcmp(formattedPath, "/home/misc/inside") == 0);
+	free(formattedPath);
+
+	// Test leading / for second arg
+	formattedPath = fs_formatPathname("/home/misc/", "inside/");
+	assert(strcmp(formattedPath, "/home/misc/inside") == 0);
+	free(formattedPath);
+
+	// Test if .. works
+	formattedPath = fs_formatPathname("/home/misc/", "..");
+	assert(strcmp(formattedPath, "/home") == 0);
+	free(formattedPath);
+
+	// Test if .. works on root folder
+	formattedPath = fs_formatPathname("/", "..");
+	assert(strcmp(formattedPath, "/") == 0);
+	free(formattedPath);
+
+	// Test if . works
+	formattedPath = fs_formatPathname("/home/misc/", "/home/./misc");
+	assert(strcmp(formattedPath, "/home/misc") == 0);
+	free(formattedPath);
+
+	// Test if . works on root folder
+	formattedPath = fs_formatPathname("/", ".");
+	assert(strcmp(formattedPath, "/") == 0);
+	free(formattedPath);
+
+	// Test starting .. 
+	formattedPath = fs_formatPathname("/home/", "../misc");
+	assert(strcmp(formattedPath, "/misc") == 0);
+	free(formattedPath);
+
+	formattedPath = fs_formatPathname("/", "home");
+	assert(strcmp(formattedPath, "/home") == 0);
+	free(formattedPath);
+
+	formattedPath = fs_formatPathname("/", "../../../..");
+	assert(strcmp(formattedPath, "/") == 0);
+	free(formattedPath);
+}

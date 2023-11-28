@@ -216,7 +216,10 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   return 0;
 }
 
-void exitFileSystem() { printf("System exiting\n"); }
+void exitFileSystem() { 
+  printf("System exiting\n"); 
+  fs_closedir(g_fs_cwd);
+}
 
 VCB* getVCB() {
   // Returns the volume control block.

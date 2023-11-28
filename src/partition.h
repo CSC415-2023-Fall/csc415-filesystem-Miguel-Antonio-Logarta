@@ -1,3 +1,18 @@
+/**************************************************************
+* Class:  CSC-415
+* Name: Miguel Logarta
+* Student ID: N/A
+* Project: Basic File System
+*
+* File: partition.h
+*
+* Description: 
+*	An interface for manipulating the volume control block (VCB)
+* and the File Allocation Table (FAT) located at the beginning
+* of our volume partition.
+*
+**************************************************************/
+
 #ifndef _PARTITION_H
 #define _PARTITION_H
 
@@ -16,14 +31,14 @@ extern int firstFreeBlock;
 */
 #pragma pack (1)
 typedef struct VCB_s {
-	uint64_t magic_signature;
-  uint64_t volume_size;
-  uint64_t block_size;
-  uint64_t num_blocks;
-  uint64_t FAT_start;
-  uint64_t FAT_length;
-  uint64_t DE_start;
-  uint64_t DE_length;
+	uint64_t magic_signature;   // Unique number to identify the partition
+  uint64_t volume_size;       // Size of volume in bytes
+  uint64_t block_size;        // Minimum block size of partition in bytes
+  uint64_t num_blocks;        // Total number of blocks in partition
+  uint64_t FAT_start;         // Starting lba position of File Allocation Table
+  uint64_t FAT_length;        // Number of lba blocks the File Allocation Tables takes
+  uint64_t DE_start;          // Starting lba block of our root directory
+  uint64_t DE_length;         // Number of lba blocks our root directory takes up
 } VCB;
 
 /* 
@@ -59,6 +74,15 @@ typedef struct directory_entry_s {
   time_t last_modified;
 } directory_entry;
 
+// Relevant information to keep track of a FAT Table
+// typedef struct fdFAT_s {
+//   FAT_block* FAT;
+//   unsigned int block_size;        // Minimum block size of partition in bytes
+//   unsigned int num_blocks;        // Total number of blocks in partition
+//   unsigned int FAT_start;         // Starting lba position of File Allocation Table
+//   unsigned int FAT_length;        // Number of lba blocks the File Allocation Tables takes
+// } fdFAT;
+
 /* 
 	Global variables to hold vcb and FAT in memory. 
 	Holding a cached state eliminates overhead of reading the
@@ -66,13 +90,18 @@ typedef struct directory_entry_s {
 */
 extern VCB *g_vcb;
 extern FAT_block *g_FAT;
+// extern fdFAT *g_FAT;
 
 /* Volume Partition Control */
 VCB *fs_getvcb();
 VCB *fs_writevcb(VCB* vcb);
 void fs_freevcb(VCB* vcb);
 FAT_block *fs_getFAT();
-FAT_block *fs_writeFAT(FAT_block* fat);
+FAT_block *fs_writeFAT(FAT_block* fat, uint64_t numBlocks);
 void fs_freefat(FAT_block* fat);
+// int fs_findFreeBlock(fdFAT* fdFat);
+int fs_findFreeBlock(FAT_block* fat);
+int fs_getFATLength();
+int fs_getLBAblock(int FATIndex);
 
 #endif
