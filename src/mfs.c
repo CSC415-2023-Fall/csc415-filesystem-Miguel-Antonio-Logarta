@@ -10,7 +10,7 @@
 
 // Store out current working directory in memory
 fdDir *g_fs_cwd = NULL;
-
+/*
 int fs_mkdir(const char *pathname, mode_t mode) {
   /* Creates a directory. Returns 0 if sucecssful 
       TODO: Check file permissions with mode param
@@ -26,7 +26,7 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   // Insert pointer to new directory in parent directory
   // Write the parent directory
   // Write the new directory
-
+/*
   char* startingPath = fs_malloc(MAX_PATH, "Unable to malloc startingPath");
   char* formattedPath;
   char* newDirName;
@@ -104,7 +104,7 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   fs_LBAwrite(writeBuffer, 1, LBAoffset, "Unable to write to disk");
 
 }
-
+*/
 int fs_rmdir(const char *pathname) {
   // Check if directory exists
   
@@ -747,6 +747,7 @@ int fs_stat(const char *path, struct fs_stat *buf) {
       buf->st_modtime = di->last_modified;
       buf->st_createtime = di->date_created;
       buf->st_filetype = di->fileType;
+      buf->st_location = di->block_location;
     }
     di = fs_readdir(parentDir);
   }

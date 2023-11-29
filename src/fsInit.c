@@ -23,12 +23,12 @@
 
 #include "fsLow.h"  // VCB defined here
 #include "mfs.h"
-
+#include "partition.h"
 #include "debug.h"
 
 // Keep VCB in memory
-VCB* g_vcb = NULL;
-FAT_block* freeSpaceList = NULL;
+//VCB* g_vcb = NULL;
+FAT_block* freeSpaceList;
 int firstFreeBlock;
 
 // For writing root directory
@@ -73,6 +73,12 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   } else if (vcb->magic_signature != VOL_SIGNATURE) {
     printf("Disk signature does not match!\n");
     return PART_ERR_INVALID;
+  } else if (vcb->magic_signature == VOL_SIGNATURE){
+    //volume already initialized
+    readFreeSpaceMap(vcb, numberOfBlocks, blockSize);
+    printf("Volume already intialized\n");
+      free(buffer);
+    return 0;
   }
 
   // Initialize our volume
@@ -167,18 +173,31 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   memset(DEBuffer, '\0', vcb->block_size);
   memcpy(DEBuffer, &initRootDir, sizeof(struct initRootDirectory));
 
+  freeSpaceList = (FAT_block*)calloc(vcb->FAT_length, sizeof(FAT_block));
+
   // Write Root directory
   blocksWritten = LBAwrite(DEBuffer, 1, 154);
   if (blocksWritten < 1) {
     printf("Unable to write to disk!\n");
+    free(buffer);
+    free(FATTable);
+    free(DEBuffer);
     return PART_ERR_INVALID;
   }
+  freeSpaceList[154].in_use = 1;  
 
   // Write FAT
   blocksWritten = LBAwrite(FATTable, blocksNeeded, 1);
   if (blocksWritten < blocksNeeded) {
     printf("Unable to write to disk!\n");
+      free(buffer);
+      free(FATTable);
+      free(DEBuffer);
     return PART_ERR_INVALID;
+  }
+
+  for(int i=1; i<=blocksNeeded; i++){
+    freeSpaceList[i].in_use=1;
   }
 
   // Write VCB
@@ -186,34 +205,64 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   blocksWritten = LBAwrite(buffer, 1, 0);
   if (blocksWritten <= 0) {
     printf("Unable to write to disk!\n");
+      free(buffer);
+      free(FATTable);
+      free(DEBuffer);
     return PART_ERR_INVALID;
   }
-
+  freeSpaceList[0].in_use=1;
   // printf("Debuuuuuuuuuuuuuuuuggggggggggg\n");
   // Copy VCB to g_vcb to keep it in memory
   // memcpy(g_vcb, vcb, sizeof(VCB));
   // *g_vcb = *vcb;
   // printf("This is our global VCB in memory: %ld\n", g_vcb->DE_start);
 
-  freeSpaceList = (FAT_block*)calloc(blocksNeeded*blockSize, sizeof(FAT_block));
-
+  
+  freeSpaceList[0].in_use = 1;
+  int previousFreeBlock= numberOfBlocks-1;
   int firstBlockFlag = 0;
   // Initialize FAT blocks
-  for (int i = 0; i < blocksNeeded*blockSize; i++) {
-    if (freeSpaceList[i].in_use == 0){
-      if(firstBlockFlag == 0){
-        firstBlockFlag =1;
-        firstFreeBlock = i;
-      }
-      freeSpaceList[i].next_lba_block = i+1;
+  for (int i = numberOfBlocks-1; i >=0; i--) {
+    if (freeSpaceList[i].in_use != 1){
+      freeSpaceList[i].in_use =0;
+      freeSpaceList[i].next_lba_block = previousFreeBlock;
+      previousFreeBlock = i;
     }
   }
+  firstFreeBlock = findFirstFreeBlock(numberOfBlocks);
+  LBAwrite(freeSpaceList ,vcb->FAT_length, vcb->FAT_start);
 
   free(buffer);
   free(FATTable);
   free(DEBuffer);
 
   return 0;
+}
+
+int findFirstFreeBlock(int NumberOfBlocks){
+   //find the firstFreeBlock
+  int currentBlockNum = 0;
+  //set current block pointer to the fist block in freeSpaceList
+  FAT_block * currentBlock = &freeSpaceList[0];
+  while(currentBlock->in_use ==1 && currentBlockNum<NumberOfBlocks-1){
+    currentBlockNum++;
+    currentBlock = &freeSpaceList[currentBlockNum];
+  }
+  firstFreeBlock=currentBlockNum;
+  if (currentBlockNum==NumberOfBlocks-1 && currentBlock->in_use ==1){
+    //no freeBlocks
+    firstFreeBlock = -1;
+  }
+  return firstFreeBlock;
+}
+
+int readFreeSpaceMap(VCB * vcb, int NumberOfBlocks, int blockSize){
+  freeSpaceList = (FAT_block*)calloc(vcb->FAT_length, sizeof(FAT_block));
+  LBAread(freeSpaceList, vcb->FAT_length, vcb->FAT_start);
+  
+  //find the firstFreeBlock
+  firstFreeBlock= findFirstFreeBlock(NumberOfBlocks);
+  return firstFreeBlock;
 }
 
 void exitFileSystem() { 

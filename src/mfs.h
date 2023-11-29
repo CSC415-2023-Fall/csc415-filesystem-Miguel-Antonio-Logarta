@@ -100,7 +100,7 @@ struct fs_stat
 	time_t    st_accesstime;   	/* time of last access */
 	time_t    st_modtime;   	/* time of last modification */
 	time_t    st_createtime;   	/* time of last status change */
-	
+	int 			st_location;
 	/* add additional attributes here for your file system */
 	unsigned char st_filetype;	/* Indicates the type of directory entry */
 };

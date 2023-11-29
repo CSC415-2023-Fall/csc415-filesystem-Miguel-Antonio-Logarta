@@ -731,12 +731,14 @@ void test() {
     char readData[100]; // Buffer to read data into
 
     // Open the file for writing (and create it if it doesn't exist)
+		printf("Opening file (create and write)...\n");
     b_io_fd fd = b_open(testFilename, O_WRONLY | O_CREAT);
     if (fd < 0) {
         printf("Error opening file for writing.\n");
         return;
     }
     // Write data to the file
+		printf("Writing to file...\n");
     int bytesWritten = b_write(fd, writeData, strlen(writeData));
     if (bytesWritten < 0) {
         printf("Error writing to file.\n");
@@ -745,6 +747,7 @@ void test() {
     }
 
     // Open the file for reading
+		printf("Opening file (read)...\n");
     fd = b_open(testFilename, O_RDONLY);
     if (fd < 0) {
         printf("Error opening file for reading.\n");
@@ -752,6 +755,7 @@ void test() {
     }
 
     // Read data from the file
+		printf("Reading file...\n");
     int bytesRead = b_read(fd, readData, sizeof(readData) - 1); // Leave space for null terminator
     if (bytesRead < 0) {
         printf("Error reading from file.\n");
@@ -876,17 +880,21 @@ int main (int argc, char * argv[])
 
 
 	// Writing sample data
-	writeTestFiles();
+	//writeTestFiles();
+
+
 
 	// Set cwd to root
 	int cwdReturn = fs_setcwd("/");
+
+	//testing 
+		test();
 
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");
 	} else {
 
-			//testing 
-			test();
+			
 
 		while (1)
 		{
