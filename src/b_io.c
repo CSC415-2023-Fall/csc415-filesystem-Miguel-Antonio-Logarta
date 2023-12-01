@@ -126,7 +126,7 @@ int createFile(char* pathName) {
     }
 
     VCB* vcb = fs_getvcb();
-    printf("block size = %d\n", vcb->block_size);
+    // printf("block size = %d\n", vcb->block_size);
     char *dirBuffer = (char*)malloc(vcb->block_size);
     if (!dirBuffer) {
         printf("Memory allocation failed for dirBuffer\n");
@@ -209,7 +209,7 @@ int createFile(char* pathName) {
       memcpy(dirBuffer+ sizeof(directory_entry), parentDE, sizeof(directory_entry));
     }
 
-    printf("Adding file to Dir -> Writing 1 block to %d\n", fdD->directory->block_location);
+    // printf("Adding file to Dir -> Writing 1 block to %d\n", fdD->directory->block_location);
     LBAwrite(dirBuffer, 1, fdD->directory->block_location);
 
     free(dirBuffer);
@@ -346,7 +346,7 @@ int UseNextFreeBlock(int previousBlock) {
         freeSpaceList[previousBlock].end_of_file = 0;
     }
 
-    printf("Updating Free Space List -> Writing block %d to %d\n",vcb->FAT_length , vcb->FAT_start);
+    // printf("Updating Free Space List -> Writing block %d to %d\n",vcb->FAT_length , vcb->FAT_start);
     LBAwrite(freeSpaceList, vcb->FAT_length, vcb->FAT_start);
 
     return allocatedBlock;

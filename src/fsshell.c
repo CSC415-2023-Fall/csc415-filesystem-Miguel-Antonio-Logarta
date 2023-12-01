@@ -572,7 +572,7 @@ int cmd_pwd (int argcnt, char *argvec[])
 		}
 	else
 		{
-		printf ("sdflkjsdf %s\n", ptr);
+		printf ("%s\n", ptr);
 		}
 		
 	free (currentWorkingDirectory);
@@ -833,7 +833,7 @@ int main (int argc, char * argv[])
 
 
 	// Writing sample data
-	//writeTestFiles();
+	writeTestFiles();
 
 
 
