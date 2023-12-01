@@ -99,6 +99,7 @@ int getFileSize(int location) {
 
 
 int createFile(char* pathName) {
+
     fdDir *fdD;
     VCB* vcb = g_vcb;
     char * fileName = malloc(100);
@@ -152,7 +153,8 @@ int createFile(char* pathName) {
     }
 
     //setting uo the DE
-    DE->block_location = UseNextFreeBlock(NULL);
+    // DE->block_location = UseNextFreeBlock(NULL);
+    DE->block_location = UseNextFreeBlock(-1);
     DE->is_directory=0;
     DE->file_size=0;
     time_t currentTime;
@@ -222,7 +224,8 @@ b_io_fd b_open(char *filename, int flags) {
             return -1;
         }
 
-        memcpy(DE, fdD->dirEntryPosition, sizeof(directory_entry));
+        // memcpy(DE, fdD->dirEntryPosition, sizeof(directory_entry));
+        memcpy(DE, fdD->directory, sizeof(directory_entry));
         fcbArray[returnFd].location = DE->block_location;
         fcbArray[returnFd].fileSize = DE->file_size;
         fcbArray[returnFd].currentBlock = fcbArray[returnFd].location;

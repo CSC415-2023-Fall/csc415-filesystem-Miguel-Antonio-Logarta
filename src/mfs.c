@@ -12,6 +12,33 @@
 // Store out current working directory in memory
 fdDir *g_fs_cwd = NULL;
 
+struct new_directory {
+  // Data inserted to make a new directory
+  directory_entry newDirectory;
+  directory_entry parent;
+};
+
+char* fs_getAbsolutePath(const char* path) {
+  char* absolutePath = fs_malloc(MAX_PATH, "Unable to malloc absolute path");
+
+  if (path[0] == '/') {
+    // This is an absolute path, copy the whole path
+    strncpy(absolutePath, path, MAX_PATH);
+    concatStrings(absolutePath, "/", MAX_PATH);
+  } else {
+    // This is a relative path
+
+    // Get cwd and append path
+    absolutePath = malloc(MAX_PATH);
+    absolutePath = fs_getcwd(absolutePath, MAX_PATH);
+
+    concatStrings(absolutePath, "/", MAX_PATH);
+    concatStrings(absolutePath, path, MAX_PATH);
+  }
+
+  return absolutePath;
+}
+
 int fs_mkdir(const char *pathname, mode_t mode) {
   /* Creates a directory. Returns 0 if sucecssful 
       TODO: Check file permissions with mode param
@@ -28,45 +55,43 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   // Write the parent directory
   // Write the new directory
 
-  char* startingPath = fs_malloc(MAX_PATH, "Unable to malloc startingPath");
-  char* formattedPath;
-  char* newDirName;
-  FAT_block* FAT;
-  int freeBlock;
-  int numBlocks;
-  int LBAoffset;
-  unsigned char* writeBuffer;
-  directory_entry* newDirectory;
+  // Part 1: Check if path is valid, and check if directory already exists
+  char* newDirPath = fs_getAbsolutePath(pathname);
+  char* parentDirPath = fs_getAbsolutePath(pathname);
+  char* newDirName = fs_malloc(MAX_PATH, "Unable to malloc new directory name");
+  struct fs_stat newDirStat;
+  struct fs_stat parentDirStat;
+  int status;
 
-  // Check if relative or absolute path
-  if (pathname[0] == '/') {
-    // This is an absolute path, 
-    strncpy(startingPath, pathname, MAX_PATH);
-    concatStrings(startingPath, "/", MAX_PATH);
-  } else {
-    // This is a relative path
+  newDirPath = fs_formatPathname(newDirPath, ".");
+  parentDirPath = fs_formatPathname(parentDirPath, "..");
+  debug_print("Formatted Paths: %s %s, %d\n", newDirPath, parentDirPath, strlen(parentDirPath));
 
-    // Get cwd and append it with path
-    startingPath = malloc(MAX_PATH);
-    startingPath = fs_getcwd(startingPath, MAX_PATH);
-
-    concatStrings(startingPath, "/", MAX_PATH);
-    concatStrings(startingPath, pathname, MAX_PATH);
-  }
-
-  // Check if directory exists. If it exists, cancel
-  formattedPath = fs_formatPathname(startingPath, ".");
-  fdDir* dirExists = fs_opendir(formattedPath);
-  if (dirExists != NULL && dirExists->directory->is_directory == 1) {
-    printf("Directory already exists!\n");
-    free(startingPath);
-    free(formattedPath);
-    fs_closedir(dirExists);
+  // Check if parent exists
+  status = fs_stat(parentDirPath, &parentDirStat);
+  if (status != 0) {
+    printf("Parent directory does not exist\n");
+    free(newDirPath);
+    free(parentDirPath);
     return -1;
   }
 
-  // Get the directory name
-  newDirName = fs_getLastToken(formattedPath);
+  // Check if directory we want to make already exists
+  status = fs_stat(newDirPath, &newDirStat);
+  if (status != 0) {
+    debug_print("Directory does not exist! Good to go\n");
+  } else {
+    printf("Directory already exists!\n");
+    free(newDirPath);
+    free(parentDirPath);
+    return -1;
+  }
+
+  // Part 2: Find space on the FAT
+  FAT_block* FAT;
+  fat_index freeBlock;
+  lba_offset lbaOffset;
+  int numBlocks;
 
   // Find free block in FAT table
   FAT = fs_getFAT();
@@ -74,9 +99,9 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   numBlocks = fs_getFATLength();
   if (freeBlock < 0) {
     printf("No available remaining space!\n");
-    free(startingPath);
-    free(formattedPath);
-    fs_closedir(dirExists);
+    free(newDirPath);
+    free(parentDirPath);
+    // fs_closedir(dirExists);
     fs_freefat(FAT);
     return -1;
   }
@@ -84,30 +109,76 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   // Reserve the block for writing
   FAT[freeBlock].in_use = 1;
   FAT[freeBlock].end_of_file = 1;
+
+  debug_print("before writing %ld\n", freeBlock);
+
   fs_writeFAT(FAT, numBlocks);
 
-  LBAoffset = fs_getLBABlock(freeBlock);
+  debug_print("after writing\n");
 
-  newDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc new directory");
-  newDirectory->block_location = LBAoffset;
+  lbaOffset = fs_getLBABlock(freeBlock);
+
+  // Part 3: Create the directory entry and store to disk
+  // Create new directory
+  directory_entry* newDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc new directory");
+  newDirectory->block_location = lbaOffset;
   newDirectory->date_created = time(0);
-  newDirectory->file_size = sizeof(directory_entry);
+  newDirectory->file_size = sizeof(directory_entry)*2;
   newDirectory->is_directory = 1;
   newDirectory->last_modified = time(0);
   strncpy(newDirectory->name, newDirName, MAX_PATH);
-  
-  // TODO: Link new dir to parent dir
-  // TODO: Link parent to new dir
-  
-  writeBuffer = fs_malloc_buff(sizeof(directory_entry), 512, "Unable to malloc buffer");
-  memset(writeBuffer, '\0', 512);
-  memcpy(writeBuffer, newDirectory, sizeof(newDirectory));
-  fs_LBAwrite(writeBuffer, 1, LBAoffset, "Unable to write to disk");
 
+  // Get address to parent directory
+  fdDir* fdParentDir = fs_opendir(parentDirPath);
+  directory_entry* parentDirectory = fs_malloc(sizeof(directory_entry), "Unable to malloc parent directory");
+  memcpy(parentDirectory, fdParentDir->directory, sizeof(directory_entry));
+  parentDirectory->file_size += sizeof(directory_entry);
+  strncpy(parentDirectory->name, "..", MAX_PATH);
+
+  // Pack directories together and store data into the disk
+  struct new_directory data;
+  memcpy(&data.newDirectory, newDirectory, sizeof(directory_entry));
+  memcpy(&data.parent, parentDirectory, sizeof(directory_entry));
+
+  fs_LBAwrite(&data, 1, lbaOffset, "Unable to write new directory to disk");
+
+  // Part 4: Modify the parent directory to include pointer to the new directory
+  unsigned char* buffer = fs_malloc_buff(parentDirStat.st_size + sizeof(directory_entry), parentDirStat.st_blksize, "Unable to read parent directory");
+  fs_LBAread(buffer, 1, parentDirStat.st_block_location, "Unable to read parent dir from disk");
+  memcpy(buffer + parentDirStat.st_size + 1, newDirectory, sizeof(directory_entry));
+  memcpy(buffer, parentDirectory, sizeof(directory_entry));
+  fs_LBAwrite(buffer, 1, parentDirStat.st_block_location, "Unable to write to disk!");
+
+
+  free(newDirPath);
+  free(parentDirPath);
+  free(newDirName);
+  fs_freefat(FAT);
+  free(buffer);
+
+  return 0;
 }
 
 int fs_rmdir(const char *pathname) {
+  /* 
+    When removing the target directory from the parent directory, 
+    you can use memmove to shift all the directories after the target directory.
+    Imagine that dircontents is an array of directory entries, you can use
+    memmove to shift all the elements down after you delete an element. This
+    takes one line of code and is way more efficient 
+  */
+
   // Check if directory exists
+  struct fs_stat dirStat;
+  int status = fs_stat(pathname, &dirStat);
+
+  if (status != 0) {
+    printf("Directory doesn't exist!\n");
+    return -1;
+  }
+
+  // Get pointer to parent dir
+
   
   // If directory exists check if there are subdirectories or files
 
@@ -119,6 +190,8 @@ int fs_rmdir(const char *pathname) {
   // Read parent directory
   // Remove directory from parent
   // Write modified parent directory back to disk
+  
+  return -1;
 }
 
 char* fs_getLastToken(const char* path) {
@@ -661,7 +734,29 @@ int fs_isDir(char *pathname) {
 
 int fs_delete(char *filename) {
   // Removes a file
-  // Use fs_stat to get information about the file
+
+  // Get file information
+  struct fs_stat fileStat;
+  int status = fs_stat(filename, &fileStat);
+  if (status != 0) {
+    printf("File not found!\n");
+    return -1;
+  }
+
+  // Part 1: Free every fat block used by the file
+  FAT_block* fat = fs_getFAT();
+  int numBlocks = fs_getFATLength();
+
+  int currentBlock = fileStat.st_block_location;
+  while (fat[currentBlock].end_of_file == 0) {
+    fat[currentBlock].in_use = 0;
+    currentBlock = fat[currentBlock].next_lba_block;
+  }
+
+  fat = fs_writeFAT(fat, numBlocks);
+  fs_freefat(fat);
+
+  // Part 2: Delete the file's directory entry from parent directory
 }
 
 int fs_stat(const char *path, struct fs_stat *buf) {
@@ -699,13 +794,14 @@ int fs_stat(const char *path, struct fs_stat *buf) {
 
   if (path[0] == '/') {
     // This is an absolute path, 
+    startingPath = fs_malloc(MAX_PATH, "Unable to malloc startingPath");
     strncpy(startingPath, path, MAX_PATH);
     concatStrings(startingPath, "/", MAX_PATH);
   } else {
     // This is a relative path
 
     // Get cwd and append it with path
-    startingPath = malloc(MAX_PATH);
+    startingPath = fs_malloc(MAX_PATH, "Unabel to malloc startingPath");
     startingPath = fs_getcwd(startingPath, MAX_PATH);
 
     concatStrings(startingPath, "/", MAX_PATH);
@@ -731,11 +827,14 @@ int fs_stat(const char *path, struct fs_stat *buf) {
   parentDir = fs_opendir(parentFolder);                // Open parent directory
 
   if (parentDir == NULL) {
+    // debug_print("Parent dir returned null!\n");
     return -1;
   }
 
   struct fs_diriteminfo* di = fs_readdir(parentDir);          // Read contents of parent directory
   vcb = fs_getvcb();
+
+  bool fileFound = false;
 
   while (di != NULL) {
     // debug_print("d_name: %s, filename: %s\n", di->d_name, filename);
@@ -743,11 +842,13 @@ int fs_stat(const char *path, struct fs_stat *buf) {
       // debug_print("Match found!\n");
       buf->st_size = di->file_size;
       buf->st_blksize = vcb->block_size;
-      buf->st_blocks = getMinimumBlocks(di->file_size, vcb->block_size);
+      buf->st_blocks = fs_getMinimumBlocks(di->file_size, vcb->block_size);
       buf->st_accesstime = time(0);
       buf->st_modtime = di->last_modified;
       buf->st_createtime = di->date_created;
       buf->st_filetype = di->fileType;
+      buf->st_block_location = di->block_location;
+      fileFound = true;
     }
     di = fs_readdir(parentDir);
   }
@@ -760,7 +861,11 @@ int fs_stat(const char *path, struct fs_stat *buf) {
   free(filename);
   free(parentFolder);
 
-  return 0;
+  if (fileFound == true) {
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize) {
@@ -1168,8 +1273,8 @@ unsigned char *fs_malloc_buff(size_t size, uint64_t blockSize, const char *failM
     Prints out "failMsg" if it fails to malloc the buffer.
   */
   uint64_t numberOfBlocks = getMinimumBlocks(size, blockSize);
-  // debug_print("fs_malloc num blocks: %ld\n", numberOfBlocks);
-  // debug_print("fs_malloc buff size: %ld\n", blockSize*numberOfBlocks);
+  debug_print("fs_malloc num blocks: %ld\n", numberOfBlocks);
+  debug_print("fs_malloc buff size: %ld\n", blockSize*numberOfBlocks);
   unsigned char *buffer = malloc(blockSize*numberOfBlocks);
   if (buffer == NULL) {
     printf("%s\n", failMsg);

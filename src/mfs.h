@@ -1,6 +1,7 @@
 /**************************************************************
 * Class:  CSC-415
 * Name: Professor Bierman
+* Further Modified By: Byte Builders
 * Student ID: N/A
 * Project: Basic File System
 *
@@ -11,6 +12,8 @@
 *	This is the interface needed by the driver to interact with
 *	your filesystem.
 *
+*	There are also some extra utility functions defined in mfs.h
+* to help simplify memory allocation and pathname parsing
 **************************************************************/
 #ifndef _MFS_H
 #define _MFS_H
@@ -100,6 +103,7 @@ struct fs_stat
 	time_t    st_accesstime;   	/* time of last access */
 	time_t    st_modtime;   	/* time of last modification */
 	time_t    st_createtime;   	/* time of last status change */
+	uint64_t st_block_location;
 	
 	/* add additional attributes here for your file system */
 	unsigned char st_filetype;	/* Indicates the type of directory entry */
@@ -108,12 +112,14 @@ struct fs_stat
 int fs_stat(const char *path, struct fs_stat *buf);
 
 /* Utility functions */
+/* Manually writes files to the disk. For testing purposes only */
 int writeTestFiles();
 uint64_t getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBlocks(uint64_t bytes, uint64_t blockSize);
 uint64_t fs_getMinimumBytes(uint64_t bytes, uint64_t blockSize);
 char* fs_formatPathname(const char* oldPath, const char* newPath);
 char* fs_getLastToken(const char* path);
+char* fs_getAbsolutePath(const char* path);
 
 /* Wrapper functions for memory allocation */
 void *fs_malloc(size_t size, const char *failMsg);

@@ -4,6 +4,7 @@
 #include "partition.h"
 #include "mfs.h"
 #include "fsLow.h"
+#include "debug.h"
 
 // Initialize global variables to NULL
 VCB* g_vcb = NULL;
@@ -68,7 +69,8 @@ FAT_block *fs_getFAT() {
   VCB* vcb = fs_getvcb();
 
   if (g_FAT == NULL) {
-    unsigned char* buffer = fs_malloc_buff(vcb->FAT_length*vcb->block_size, vcb->block_size, "Unable to malloc FAT buffer");
+    debug_print("g fat nulll %ld, %ld\n", vcb->num_blocks, vcb->FAT_length);
+    unsigned char* buffer = fs_malloc_buff(sizeof(FAT_block)*vcb->num_blocks, vcb->block_size, "Unable to malloc FAT buffer");
     fs_LBAread(buffer, vcb->FAT_length, vcb->FAT_start, "Unable to read FAT");
     g_FAT = fs_malloc(sizeof(FAT_block)*vcb->num_blocks, "Unable to malloc g_FAT");
     memcpy(g_FAT, buffer, sizeof(FAT_block)*vcb->num_blocks);
@@ -97,16 +99,22 @@ FAT_block *fs_writeFAT(FAT_block* fat, uint64_t numBlocks) {
       addresses of source (fat) and destination (g_FAT)
       overlap.
   */
-  FAT_block* FATCopy = fs_malloc(sizeof(FAT_block), "Unable to malloc FAT");
-  memcpy(FATCopy, g_FAT, sizeof(FAT_block));
-  memcpy(g_FAT, fat, sizeof(FAT_block));
+  FAT_block* FATCopy = fs_malloc(sizeof(FAT_block)*numBlocks, "Unable to malloc FAT");
+  memcpy(FATCopy, g_FAT, sizeof(FAT_block)*numBlocks);
+  memcpy(g_FAT, fat, sizeof(FAT_block)*numBlocks);
 
   unsigned char* buffer = fs_malloc_buff(sizeof(FAT_block)*numBlocks, MINBLOCKSIZE, "Unable to malloc buffer for FAT");
   memcpy(buffer, g_FAT, sizeof(FAT_block)*numBlocks);
-  fs_LBAwrite(buffer, numBlocks, 1, "Unable to write FAT to disk");
+
+  VCB* vcb = fs_getvcb();
+
+  debug_print("FAt info: %ld %ld\n", vcb->FAT_length, vcb->FAT_start);
+  fs_LBAwrite(buffer, vcb->FAT_length, vcb->FAT_start, "Unable to write FAT to disk");
+  debug_print("Resultof after buffer: \n");
 
   free(FATCopy);
   free(buffer);
+  fs_freevcb(vcb);
 
 	return g_FAT;
 }
