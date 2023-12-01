@@ -27,8 +27,8 @@
 #include "debug.h"
 
 // Keep VCB in memory
-//VCB* g_vcb = NULL;
-FAT_block* freeSpaceList;
+// VCB* g_vcb = NULL;
+FAT_block* freeSpaceList = NULL;
 int firstFreeBlock;
 
 // For writing root directory
