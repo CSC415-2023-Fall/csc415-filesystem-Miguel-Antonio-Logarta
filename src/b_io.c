@@ -24,8 +24,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "mfs.h"
-
-#include "mfs.h"
+#include "partition.h"
 
 #define MAXFCBS 20
 #define B_CHUNK_SIZE 512
@@ -40,6 +39,7 @@ typedef struct b_fcb {
   int currentBlock;
   int fileSize;
   int flag;
+  int DELocation;
 } b_fcb;
 
 b_fcb fcbArray[MAXFCBS];
@@ -56,6 +56,7 @@ void b_init() {
   startup = 1;
 }
 
+
 // Method to get a free FCB element
 b_io_fd b_getFCB() {
   for (int i = 0; i < MAXFCBS; i++) {
@@ -67,252 +68,292 @@ b_io_fd b_getFCB() {
   return (-1); // all in use
 }
 
-//return file size in blocks
-int getFileSize(int location) {
+
+struct fs_diriteminfo *findFile(char *pathName) {
     VCB *vcb = g_vcb;
-    int blockSize = sizeof(FAT_block);
-    FAT_block *currentBlock = malloc(blockSize);
-    char *buffer = malloc(blockSize);
-
-    if (!currentBlock || !buffer) {
-        free(currentBlock); // Safe to call free on NULL
-        free(buffer);
-        return -1; // Indicate failure
+    if (pathName == NULL) {
+        printf("Invalid path name provided\n");
+        return NULL;
     }
 
-    LBAread(buffer, 1, location);
-    memcpy(currentBlock, buffer, blockSize);
-    int counter = 0;
-    while (currentBlock->end_of_file != 1) {
-        counter += vcb->block_size;
-        LBAread(buffer, 1, currentBlock->next_lba_block);
-        memcpy(currentBlock, buffer, blockSize);
-    }
-    if (currentBlock->next_lba_block > 0) {
-        counter += currentBlock->next_lba_block;
+    char *fileName = strrchr(pathName, '/');
+    if (fileName == NULL) {
+        printf("Invalid path format\n");
+        return NULL;
     }
 
-    free(currentBlock);
-    free(buffer);
-    return counter;
+    fileName++; // Skip the '/' to get the file name
+
+    char *pathCopy = strdup(pathName);
+    if (!pathCopy) {
+        printf("Memory allocation failed for pathCopy\n");
+        return NULL;
+    }
+
+    char *lastSlash = strrchr(pathCopy, '/');
+    if (lastSlash != NULL) {
+        *lastSlash = '\0';  // Cut the path at the last '/'
+    }
+    /*
+    char* dirBuff = malloc(sizeof(vcb->block_size));
+    fdDir *fdD = fs_opendir(lastSlash ? pathCopy : "/");
+    LBARead(,fdD->directory->block_location);
+    */
+  
+ 
+    fdDir *fdD = fs_opendir(lastSlash ? pathCopy : "/");
+    free(pathCopy);
+    if (fdD == NULL) {
+        printf("Path not found\n");
+        return NULL;
+    }
+
+    struct fs_diriteminfo *fs_dir;
+    while ((fs_dir = fs_readdir(fdD)) != NULL) {
+        if (strcmp(fs_dir->d_name, fileName) == 0) {
+            break;  // File found
+        }
+    }
+  
+    fs_closedir(fdD);
+    return fs_dir;  // fs_dir is NULL if the file was not found
 }
 
-
 int createFile(char* pathName) {
+    if (!pathName) {
+        printf("Invalid path name provided\n");
+        return -1;
+    }
 
-    fdDir *fdD;
-    VCB* vcb = g_vcb;
-    char * fileName = malloc(100);
-    char *dirBuffer = malloc(vcb->block_size);
+    VCB* vcb = fs_getvcb();
+    printf("block size = %d\n", vcb->block_size);
+    char *dirBuffer = (char*)malloc(vcb->block_size);
     if (!dirBuffer) {
         printf("Memory allocation failed for dirBuffer\n");
-        return -1; // Indicate failure
+        return -1;
     }
-
-    if (strchr(pathName, '/') != NULL) {
-      
-      // Copy the pathName to a new buffer so it can be modified      
-      char *pathCopy = strdup(pathName);
-      if (!pathCopy) {
-          printf("Memory allocation failed for pathCopy\n");
-          free(dirBuffer);
-          return -1; // Indicate failure
-      }
-
-      // Find the last occurrence of '/'
-      char *lastSlash = strrchr(pathCopy, '/');
-      if (lastSlash != NULL) {
-          if (lastSlash != pathCopy) {  // Check if it's not the root directory
-              *lastSlash = '\0';  // Cut the path at the last '/'
-          } else {
-              // If it's the root directory, keep it as is
-              strcpy(fileName, lastSlash+1);
-              *(lastSlash + 1) = '\0';
-          }
-          fdD = fs_opendir(pathCopy);
-          free(pathCopy); // Free the path copy after use
-      }
-    }
-    else {
-        fdD = g_fs_cwd;
-        printf("Curren Directory: %s", fdD->directory->name);
-    }
-    if (fdD == NULL) {  
-        printf("Path not found\n");
-        free(dirBuffer);
-        return -1; // Indicate failure
-    }
-
-    LBAread(dirBuffer, 1, fdD->directory->block_location);
+ 
+    // Allocate memory for DE before using it
     directory_entry *DE = malloc(sizeof(directory_entry));
-    
     if (!DE) {
         printf("Memory allocation failed for directory entry\n");
         free(dirBuffer);
-        return -1; // Indicate failure
+        return -1;
     }
 
-    //setting uo the DE
-    // DE->block_location = UseNextFreeBlock(NULL);
+    char *lastSlash = strrchr(pathName, '/');
+    if (lastSlash == NULL || *(lastSlash + 1) == '\0') {
+        printf("Invalid path format or empty file name\n");
+        free(dirBuffer);
+        free(DE);
+        return -1;
+    }
+
+    char *fileName = lastSlash + 1;
+    if (strlen(fileName) >= sizeof(DE->name)) {
+        printf("File name too long\n");
+        free(dirBuffer);
+        free(DE);
+        return -1;
+    }
+
+    strncpy(DE->name, fileName, sizeof(DE->name) - 1);  // Ensure null-termination
+    DE->name[sizeof(DE->name) - 1] = '\0';
+
+    // Create a copy of the path to modify it
+    char *pathCopy = strndup(pathName, lastSlash - pathName);
+    if (!pathCopy) {
+        printf("Memory allocation failed for pathCopy\n");
+        free(dirBuffer);
+        free(DE);
+        return -1;
+    }
+    //if the file created at root
+    if (strcmp(pathCopy, "") == 0) {
+      pathCopy[0] = '/';
+      pathCopy[1] = '\0';
+    }
+
+    fdDir *fdD = fs_opendir(pathCopy);
+  
+    if (fdD == NULL) {
+        printf("Directory not found\n");
+        free(dirBuffer);
+        free(DE);
+        free(pathCopy);
+        return -1;
+    }
+
+    LBAread(dirBuffer, 1, fdD->directory->block_location);
+
     DE->block_location = UseNextFreeBlock(-1);
-    DE->is_directory=0;
-    DE->file_size=0;
+    DE->is_directory = 0;
+    DE->file_size = 0;
     time_t currentTime;
-    time(&currentTime); // Get the current time
+    time(&currentTime);
     DE->date_created = currentTime;
     DE->last_modified = currentTime;
-    strcpy(DE->name, fileName);
+
+    // Copy the new DE into its parent Directory
+    memcpy(dirBuffer + fdD->directory->file_size, DE, sizeof(directory_entry));
+    fdD->directory->file_size += sizeof(directory_entry);
     
-    //copy the new DE into its parent Direcotry
-    memcpy(dirBuffer+fdD->directory->file_size, DE, sizeof(directory_entry));
+    //modify ParentDr size
+    directory_entry *parentDE = malloc(sizeof(directory_entry));
+    memcpy(parentDE, dirBuffer, sizeof(directory_entry));
+    parentDE->file_size = fdD->directory->file_size;
+    memcpy(dirBuffer, parentDE, sizeof(directory_entry));
+    if(strcmp(pathCopy, "/")==0){
+      memcpy( parentDE, dirBuffer+ sizeof(directory_entry), sizeof(directory_entry));
+      parentDE->file_size = fdD->directory->file_size;
+      memcpy(dirBuffer+ sizeof(directory_entry), parentDE, sizeof(directory_entry));
+    }
+
+    printf("Adding file to Dir -> Writing 1 block to %d\n", fdD->directory->block_location);
     LBAwrite(dirBuffer, 1, fdD->directory->block_location);
-    
+
     free(dirBuffer);
     free(DE);
-    free(fileName);
-
-    return 0; // Assuming 0 indicates success
+    free(pathCopy);
+    return 0;
 }
+
+int findDELocation(const char *filename) {
+    if (filename == NULL) {
+        printf("Invalid filename provided\n");
+        return -1;
+    }
+
+    char *lastSlash = strrchr(filename, '/');
+    if (lastSlash == NULL || *(lastSlash + 1) == '\0') {
+        printf("Invalid path format or empty file name\n");
+        return -1;
+    }
+
+    char *fileName = lastSlash + 1; // The actual file name
+
+    // Create a copy of the path to the directory
+    char *dirPath = strndup(filename, lastSlash - filename);
+    if (!dirPath) {
+        printf("Memory allocation failed for dirPath\n");
+        return -1;
+    }
+
+    // Handle the root directory case
+    if (strlen(dirPath) == 0) {
+        free(dirPath);
+        dirPath = strdup("/");
+    }
+
+    // Open the directory
+    fdDir *dir = fs_opendir(dirPath);
+    free(dirPath);
+
+    if (dir == NULL) {
+        printf("Directory not found\n");
+        return -1;
+    }
+
+    struct fs_diriteminfo *dirInfo;
+    int DElocation = -1;
+    int offset = 0;
+
+    // Iterate through the directory entries
+    while ((dirInfo = fs_readdir(dir)) != NULL) {
+        if (strcmp(dirInfo->d_name, fileName) == 0) {
+            DElocation = dir->directory->block_location * B_CHUNK_SIZE + offset;
+            break;
+        }
+        offset += sizeof(directory_entry);
+    }
+
+    fs_closedir(dir);
+    return DElocation;
+}
+
 
 
 // Interface to open a buffered file
 // Modification of interface for this assignment, flags match the Linux flags for open
 // O_RDONLY, O_WRONLY, O_CREAT, or O_RDWR
 b_io_fd b_open(char *filename, int flags) {
+    char *pathName = malloc(100);;
     if (startup == 0) {
         b_init();  // Initialize our file system if not already done
     }
 
     b_io_fd returnFd = b_getFCB();  // Get a free File Control Block
     if (returnFd == -1) {
-        printf("No free File Control Block available");
+        printf("No free File Control Block available\n");
         return -1;
     }
 
-    // Allocate a buffer for this file
     fcbArray[returnFd].buf = (char *)malloc(B_CHUNK_SIZE);
     if (fcbArray[returnFd].buf == NULL) {
-        printf("Memory allocation for buffer failed");
+        printf("Memory allocation for buffer failed\n");
         return -1;
     }
 
-    // Initialize fields of the file control block
     fcbArray[returnFd].buflen = 0;
     fcbArray[returnFd].flag = flags;
     fcbArray[returnFd].index = 0;
 
-    
+    if (strchr(filename, '/') == NULL){
+        pathName = fs_getcwd(pathName, strlen(filename));
+        memcpy(pathName+strlen(pathName),filename,strlen(filename));
+    }
 
-    // Additional logic for handling file open based on flags
-    if (flags == O_WRONLY | O_CREAT) {
-        // If the file is opened in write-only or create mode, handle as needed
-        createFile(filename);
-    } 
-        // Read mode: Retrieve and store file information in the file control block
-        // Open the directory and check if the file exists
-        fdDir *fdD = fs_opendir(filename);
-        if (fdD == NULL) {
-            printf("Path/file does not exist\n");
-            free(fcbArray[returnFd].buf); // Free allocated buffer
-            return -1;
-
-        }
-        directory_entry* DE = malloc(sizeof(directory_entry));
-        if (!DE) {
-            printf("Memory allocation failed for directory entry\n");
+    if ((flags & (O_WRONLY | O_CREAT)) == (O_WRONLY | O_CREAT)) {
+        if (createFile(pathName) != 0) {
             free(fcbArray[returnFd].buf);
             return -1;
         }
+    } 
 
-        // memcpy(DE, fdD->dirEntryPosition, sizeof(directory_entry));
-        memcpy(DE, fdD->directory, sizeof(directory_entry));
-        fcbArray[returnFd].location = DE->block_location;
-        fcbArray[returnFd].fileSize = DE->file_size;
-        fcbArray[returnFd].currentBlock = fcbArray[returnFd].location;
-        
-        free(DE); // Free the directory entry after use
-    
 
-    return returnFd; // Return the file descriptor
+    struct fs_diriteminfo *fs_dir = findFile(pathName);
+    if (fs_dir == NULL) {
+        printf("Path/file does not exist\n");
+        free(fcbArray[returnFd].buf);
+        return -1;
+    }
+
+    fcbArray[returnFd].location = fs_dir->block_location;
+    fcbArray[returnFd].fileSize = fs_dir->file_size;
+    fcbArray[returnFd].currentBlock = fs_dir->block_location;
+
+    fcbArray[returnFd].DELocation = findDELocation(pathName);
+
+    return returnFd;  // Return the file descriptor
 }
 
-
-
-/*
-//uses and returns the next freeblock
-int UseNextFreeBlock(int previousBlock){
-  VCB * vcb= g_vcb;
-  int FAT_BLOCK_location; //current FAT_BLOCK struct location (in blocks) in FAT table 
-  int FAT_BLOCK_index; //the index of the FAT_BLOCK struct(in bytes) in FAT_BLOCK_location block
-  char* BlockBuffer = malloc(sizeof(vcb->block_size));
-  FAT_block* modifiedBlock = malloc(sizeof(FAT_block));
-  FAT_block* freeFatBlock = freeSpaceList;
-  freeSpaceList = freeSpaceList->next_lba_block;
-  freeFatBlock->in_use= 1;
-  int numberOfFATBlocksInBlock = vcb->block_size / sizeof(FAT_block);
-  FAT_BLOCK_location = vcb->FAT_start +firstFreeBlock / numberOfFATBlocksInBlock;
-  FAT_BLOCK_index = firstFreeBlock % numberOfFATBlocksInBlock;
-  LBAread(BlockBuffer,1,FAT_BLOCK_location);
-  memcpy(modifiedBlock, BlockBuffer+FAT_BLOCK_index, sizeof(FAT_block));
-  modifiedBlock->in_use=1;
-  memcpy(BlockBuffer+FAT_BLOCK_index, modifiedBlock, sizeof(FAT_block));
-  LBAwrite(BlockBuffer,1,FAT_BLOCK_location);
-  int returnFirstFreeBlock= firstFreeBlock;
-  firstFreeBlock = freeFatBlock->next_lba_block;
-  
-  return returnFirstFreeBlock;
-}
-*/
 
 int UseNextFreeBlock(int previousBlock) {
     VCB *vcb = g_vcb;
-    int FAT_BLOCK_location; // current FAT_BLOCK struct location (in blocks) in FAT table 
-    int FAT_BLOCK_index; // the index of the FAT_BLOCK struct (in bytes) in FAT_BLOCK_location block
-    char* BlockBuffer = malloc(vcb->block_size);
-    if (BlockBuffer == NULL) {
-        return -1; // Memory allocation failed
-    }
-    FAT_block* modifiedBlock = malloc(sizeof(FAT_block));
-    if (modifiedBlock == NULL) {
-        free(BlockBuffer);
-        return -1; // Memory allocation failed
-    }
-    FAT_block* freeFatBlock = freeSpaceList;
-    freeSpaceList = freeSpaceList->next_lba_block;
-    freeFatBlock->in_use = 1;
 
-    // Update the previous block
-    if (previousBlock != -1) { // Check if there is a valid previous block
-        int numberOfFATBlocksInBlock = vcb->block_size / sizeof(FAT_block);
-        int prevBlockLocation = vcb->FAT_start + previousBlock / numberOfFATBlocksInBlock;
-        int prevBlockIndex = previousBlock % numberOfFATBlocksInBlock;
-
-        LBAread(BlockBuffer, 1, prevBlockLocation);
-        FAT_block* previousFatBlock = (FAT_block*)(BlockBuffer + prevBlockIndex * sizeof(FAT_block));
-        previousFatBlock->next_lba_block = firstFreeBlock; // Point to the new block
-        LBAwrite(BlockBuffer, 1, prevBlockLocation); // Write back the updated block
+    if (firstFreeBlock == -1) {
+        printf("No free blocks available\n");
+        return -1;
     }
 
-    // Allocate the new block
-    int numberOfFATBlocksInBlock = vcb->block_size / sizeof(FAT_block);
-    FAT_BLOCK_location = vcb->FAT_start + firstFreeBlock / numberOfFATBlocksInBlock;
-    FAT_BLOCK_index = firstFreeBlock % numberOfFATBlocksInBlock;
-    LBAread(BlockBuffer, 1, FAT_BLOCK_location);
-    memcpy(modifiedBlock, BlockBuffer + FAT_BLOCK_index * sizeof(FAT_block), sizeof(FAT_block));
-    modifiedBlock->in_use = 1;
-    memcpy(BlockBuffer + FAT_BLOCK_index * sizeof(FAT_block), modifiedBlock, sizeof(FAT_block));
-    LBAwrite(BlockBuffer, 1, FAT_BLOCK_location);
+    freeSpaceList[firstFreeBlock].in_use = 1;
+    freeSpaceList[firstFreeBlock].end_of_file = 1;
+    int allocatedBlock = firstFreeBlock;
+    firstFreeBlock = freeSpaceList[firstFreeBlock].next_lba_block;
 
-    int returnFirstFreeBlock = firstFreeBlock;
-    firstFreeBlock = freeFatBlock->next_lba_block;
+    if (previousBlock != -1) {
+        freeSpaceList[previousBlock].next_lba_block = allocatedBlock;
+        freeSpaceList[previousBlock].end_of_file = 0;
+    }
 
-    free(BlockBuffer);
-    free(modifiedBlock);
+    printf("Updating Free Space List -> Writing block %d to %d\n",vcb->FAT_length , vcb->FAT_start);
+    LBAwrite(freeSpaceList, vcb->FAT_length, vcb->FAT_start);
 
-    return returnFirstFreeBlock;
+    return allocatedBlock;
 }
 
 
+/*
 int getLastBlockInFile(location){
 
   VCB * vcb = g_vcb;
@@ -332,46 +373,72 @@ int getLastBlockInFile(location){
   }
   return returnBlockNum;
 }
-
-// Interface to write function
+*/
 int b_write(b_io_fd fd, char *buffer, int count) {
-  if (startup == 0)
-    b_init(); // Initialize our system
+    if (startup == 0) b_init(); // Initialize our system
 
-  // check that fd is between 0 and (MAXFCBS-1)
-  if ((fd < 0) || (fd >= MAXFCBS)) {
-    return (-1); // invalid file descriptor
-  }
-  
-  VCB *vcb = g_vcb;
-  int parBufferIndex = 0;
-  char* fileBlockBuffer = malloc(vcb->block_size); 
-  int bytesToRead;
-  int remainingBytes = fcbArray[fd].fileSize %vcb->block_size;
-  if (fcbArray[fd].fileSize < vcb->block_size || fcbArray[fd].fileSize %vcb->block_size >0){
-    LBAread(fileBlockBuffer, 1, fcbArray[fd].currentBlock);
-    memcpy(fileBlockBuffer, buffer, remainingBytes);
-    parBufferIndex +=remainingBytes;
-    LBAwrite(fileBlockBuffer, 1, fcbArray[fd].currentBlock);
-    count = count-remainingBytes;
-  }
-   
-  while(count> vcb->block_size){
-    fcbArray[fd].currentBlock = UseNextFreeBlock(fcbArray[fd].currentBlock);
-    bytesToRead = count < vcb->block_size ? count : vcb->block_size;
-    memcpy(fileBlockBuffer, buffer, fcbArray[fd].currentBlock);
-    LBAwrite(buffer + parBufferIndex, 1, fcbArray[fd].currentBlock);
-    count -=vcb->block_size;
-  }
-  if (count>0){
-    fcbArray[fd].currentBlock = UseNextFreeBlock(fcbArray[fd].currentBlock);
-    bytesToRead = count < vcb->block_size ? count : vcb->block_size;
-    memcpy(fileBlockBuffer, buffer, fcbArray[fd].currentBlock);
-    LBAwrite(buffer + parBufferIndex, 1, fcbArray[fd].currentBlock);
-  }
+    if ((fd < 0) || (fd >= MAXFCBS)) return (-1); // Invalid file descriptor
 
-  return (0); // Change this
+    VCB *vcb = g_vcb;
+    char *fileBlockBuffer = malloc(vcb->block_size);
+    if (!fileBlockBuffer) return -1; // Memory allocation failed
+
+    int parBufferIndex = 0;
+    int totalBytesWritten = 0;
+    int bytesToWrite;
+
+    // Remaining bytes in the current block
+    int remainingBytesInBlock = (fcbArray[fd].fileSize < vcb->block_size) ? 
+                                (vcb->block_size - fcbArray[fd].fileSize) : 
+                                (vcb->block_size - (fcbArray[fd].fileSize % vcb->block_size));
+
+    memset(fileBlockBuffer, 0, vcb->block_size);
+    if (remainingBytesInBlock > 0) {
+        LBAread(fileBlockBuffer, 1, fcbArray[fd].currentBlock);
+        bytesToWrite = (remainingBytesInBlock < count) ? remainingBytesInBlock : count;
+        memcpy(fileBlockBuffer, buffer, bytesToWrite);
+        printf("Writing to file -> Writing 1 block to %d\n", fcbArray[fd].currentBlock);
+        LBAwrite(fileBlockBuffer, 1, fcbArray[fd].currentBlock);
+        fcbArray[fd].fileSize += bytesToWrite; // Update file size
+        totalBytesWritten += bytesToWrite;
+        parBufferIndex += bytesToWrite;
+        count -= bytesToWrite;
+    }
+
+    while (count > 0) {
+        memset(fileBlockBuffer, 0, vcb->block_size);
+        fcbArray[fd].currentBlock = UseNextFreeBlock(fcbArray[fd].currentBlock);
+        bytesToWrite = (count < vcb->block_size) ? count : vcb->block_size;
+        memcpy(fileBlockBuffer, buffer + parBufferIndex, bytesToWrite);
+        printf("Writing to file -> Writing 1 block to %d\n", fcbArray[fd].currentBlock);
+        LBAwrite(fileBlockBuffer, 1, fcbArray[fd].currentBlock);
+        fcbArray[fd].fileSize += bytesToWrite; // Update file size
+        totalBytesWritten += bytesToWrite;
+        parBufferIndex += bytesToWrite;
+        count -= bytesToWrite;
+    }
+
+    // Update the directory entry with the new file size
+    directory_entry updatedDE;
+    char *dirBuffer = malloc(vcb->block_size);
+    if (dirBuffer == NULL) {
+        free(fileBlockBuffer);
+        return -1;
+    }
+    LBAread(dirBuffer, 1, fcbArray[fd].DELocation / vcb->block_size);
+    memcpy(&updatedDE, dirBuffer + (fcbArray[fd].DELocation % vcb->block_size), sizeof(directory_entry));
+    updatedDE.file_size = fcbArray[fd].fileSize;
+    memcpy(dirBuffer + (fcbArray[fd].DELocation % vcb->block_size), &updatedDE, sizeof(directory_entry));
+    LBAwrite(dirBuffer, 1, fcbArray[fd].DELocation / vcb->block_size);
+
+    free(dirBuffer);
+    free(fileBlockBuffer); // Free allocated memory
+    return totalBytesWritten;
 }
+
+
+
+
 
 // Interface to read a buffer
 
@@ -395,94 +462,72 @@ int b_write(b_io_fd fd, char *buffer, int count) {
 //  | Part1       |  Part 2                                        | Part3  |
 //  +-------------+------------------------------------------------+--------+
 int b_read(b_io_fd fd, char *buffer, int count) {
-  if (startup == 0)
-    b_init(); // Initialize our system
+    if (startup == 0)
+        b_init(); // Initialize our system
 
-  // check that fd is between 0 and (MAXFCBS-1)
-  if ((fd < 0) || (fd >= MAXFCBS)) {
-    return (-1); // invalid file descriptor
-  }
-
-  b_fcb *fcb = &fcbArray[fd];
-  if (fcb->flag == O_WRONLY){
-    printf("Cant read file, flag is set to O_WRONLY");
-    return (-1);
-  }
-
-  VCB * vcb= g_vcb;
-  int FAT_BLOCK_location; //current FAT_BLOCK struct location (in blocks) in FAT table 
-  int FAT_BLOCK_index; //the index of the FAT_BLOCK struct(in bytes) in FAT_BLOCK_location block
-  char * FAT_block_buffer = malloc(sizeof(FAT_block));
-  FAT_block* fatBlock = malloc(sizeof(FAT_block));
-  int bytesRead;
-  int bytesToreturn;
-  int part1=0, part2=0, part3=0;
-  int remainingBytesInBuffer = fcb->buflen - fcb->index;
-  int amountAlreadyDelivered = fcb->currentBlock * B_CHUNK_SIZE - remainingBytesInBuffer;
-
-  if ((amountAlreadyDelivered + count) > fcb->fileSize){
-    count = fcb->fileSize - amountAlreadyDelivered;
-  }
-
-  if(remainingBytesInBuffer >= count){
-    part1 = count; 
-  }
-  else {
-    part1= remainingBytesInBuffer;
-  }
-
-  int numberOfBlocksToCopy = (count - remainingBytesInBuffer) / B_CHUNK_SIZE;
-  part2 = numberOfBlocksToCopy *B_CHUNK_SIZE;
-
-  part3 = count - remainingBytesInBuffer - part2;
-
-  if (part1 >0){
-    memcpy(buffer, fcb->buf + fcb->index, part1);
-    fcb->index+=part1;
-  }
-  if (part2 > 0){
-    
-    for (int i =0 ; i<numberOfBlocksToCopy; i++){
-      //read file block
-      bytesRead += LBAread(buffer + part1, 1, fcb->currentBlock);
-
-      //read FAT_BLOCK struct
-      //calculate which block the struct is located in the FAT table
-      FAT_BLOCK_location = vcb->FAT_start + fcb->currentBlock / sizeof(FAT_block);
-      FAT_BLOCK_index = fcb->currentBlock % sizeof(FAT_block);
-      LBAread(FAT_block_buffer, 1, FAT_BLOCK_location);
-      fatBlock = (FAT_block*)FAT_block_buffer;
-      fcb->currentBlock = fatBlock->next_lba_block;
+    if ((fd < 0) || (fd >= MAXFCBS)) {
+        return (-1); // Invalid file descriptor
     }
-   
-    part2 = bytesRead;
-  }
-  if (part3 >0){
-    bytesRead = LBAread(fcb->buf, 1, fcb->currentBlock + fcb->location);
-    
-    //read FAT_BLOCK struct
-    //calculate which block the struct is located in the FAT table
-    FAT_BLOCK_location = vcb->FAT_start + fcb->currentBlock / sizeof(FAT_block);
-    FAT_BLOCK_index = fcb->currentBlock % sizeof(FAT_block);
-    LBAread(FAT_block_buffer, 1, FAT_BLOCK_location);
-    fatBlock = (FAT_block*)FAT_block_buffer;
-    fcb->currentBlock = fatBlock->next_lba_block;
 
-    fcb->index=0;
-    fcb->buflen = bytesRead;
-  }
+    b_fcb *fcb = &fcbArray[fd];
+    if (fcb->flag == O_WRONLY) {
+        printf("Cannot read file, flag is set to O_WRONLY\n");
+        return (-1);
+    }
 
-  if (bytesRead < part3){
-    part3= bytesRead;
-  }
+    VCB *vcb = g_vcb;
+    int bytesRead = 0;
+    int part1 = 0, part2 = 0, part3 = 0;
+    int remainingBytesInBuffer = fcb->buflen - fcb->index;
+    int amountAlreadyDelivered = fcb->currentBlock * B_CHUNK_SIZE - remainingBytesInBuffer;
 
-  if (part3 > 0){
-    memcpy(buffer+part1+part2, fcb->buf +fcb->index, part3);
-    fcb->index+=part3;
-  }
+    if ((amountAlreadyDelivered + count) > fcb->fileSize) {
+        count = fcb->fileSize - amountAlreadyDelivered;
+    }
 
-  return (part1+part2+part3); 
+    if (remainingBytesInBuffer >= count) {
+        part1 = count;
+    } else {
+        part1 = remainingBytesInBuffer;
+    }
+
+    if (part1 > 0) {
+        memcpy(buffer, fcb->buf + fcb->index, part1);
+        fcb->index += part1;
+    }
+
+    int numberOfBlocksToCopy = (count - remainingBytesInBuffer) / B_CHUNK_SIZE;
+    part2 = numberOfBlocksToCopy * B_CHUNK_SIZE;
+    part3 = count - remainingBytesInBuffer - part2;
+
+    for (int i = 0; i < numberOfBlocksToCopy; i++) {
+        bytesRead = LBAread(buffer + part1 + (i * B_CHUNK_SIZE), 1, fcb->currentBlock);
+        if (bytesRead < B_CHUNK_SIZE) {
+            part2 = bytesRead; // Adjust part2 if fewer bytes were read
+            break;
+        }
+
+        // Update current block to the next block
+        int FAT_BLOCK_location = vcb->FAT_start + (fcb->currentBlock / sizeof(FAT_block));
+        int FAT_BLOCK_index = fcb->currentBlock % sizeof(FAT_block);
+        FAT_block fatBlock;
+        LBAread(&fatBlock, 1, FAT_BLOCK_location);
+        fcb->currentBlock = fatBlock.next_lba_block;
+    }
+
+    if (part3 > 0) {
+        bytesRead = LBAread(fcb->buf, 1, fcb->currentBlock);
+        if (bytesRead < part3) {
+            part3 = bytesRead; // Adjust part3 if fewer bytes were read
+        }
+        memcpy(buffer + part1 + part2, fcb->buf, part3);
+        fcb->buflen = bytesRead; // Update buffer length
+        fcb->index = part3;       // Set index for next read
+    }
+
+    return part1 + part2 + part3;
 }
+
 
 // Interface to Close the file
 int b_close(b_io_fd fd) {}

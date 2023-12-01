@@ -149,7 +149,6 @@ int fs_mkdir(const char *pathname, mode_t mode) {
   memcpy(buffer, parentDirectory, sizeof(directory_entry));
   fs_LBAwrite(buffer, 1, parentDirStat.st_block_location, "Unable to write to disk!");
 
-
   free(newDirPath);
   free(parentDirPath);
   free(newDirName);
@@ -849,6 +848,7 @@ int fs_stat(const char *path, struct fs_stat *buf) {
       buf->st_filetype = di->fileType;
       buf->st_block_location = di->block_location;
       fileFound = true;
+      buf->st_location = di->block_location;
     }
     di = fs_readdir(parentDir);
   }
