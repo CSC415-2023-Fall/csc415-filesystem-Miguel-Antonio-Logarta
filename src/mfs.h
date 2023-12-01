@@ -1,8 +1,8 @@
 /**************************************************************
 * Class:  CSC-415
 * Name: Professor Bierman
-* Further Modified By: Byte Builders
-* Student ID: N/A
+* Further Modified By: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
 * Project: Basic File System
 *
 * File: mfs.h

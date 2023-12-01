@@ -1,3 +1,22 @@
+/**************************************************************
+* Class:  CSC-415
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
+* Github Name:
+* Group Name: Byte Builders
+* Project: Basic File System
+*
+* File: mfs.c
+*
+* Description: 
+*	This is the file system interface.
+*	This is the interface needed by the driver to interact with
+*	your filesystem.
+*
+*	There are also some extra utility functions defined in mfs.h
+* to help simplify memory allocation and pathname parsing
+**************************************************************/
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

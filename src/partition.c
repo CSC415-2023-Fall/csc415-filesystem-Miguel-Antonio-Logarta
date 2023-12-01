@@ -1,3 +1,19 @@
+/**************************************************************
+* Class:  CSC-415
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
+* Project: Basic File System
+*
+* File: partition.h
+*
+* Description: 
+*	An interface for manipulating the volume control block (VCB)
+* and the File Allocation Table (FAT) located at the beginning
+* of our volume partition.
+*
+**************************************************************/
+
+
 #include <stdlib.h>
 #include <string.h>
 

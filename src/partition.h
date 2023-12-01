@@ -1,7 +1,7 @@
 /**************************************************************
 * Class:  CSC-415
-* Name: Miguel Logarta
-* Student ID: N/A
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
 * Project: Basic File System
 *
 * File: partition.h

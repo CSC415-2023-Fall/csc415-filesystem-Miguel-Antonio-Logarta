@@ -1,10 +1,10 @@
 /**************************************************************
- * Class:  CSC-415-0# Fall 2021
- * Names:
- * Student IDs:
- * GitHub Name:
- * Group Name:
- * Project: Basic File System
+* Class:  CSC-415-02 Fall 2023
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
+* GitHub Name:
+* Group Name: Byte Builders
+* Project: Basic File System
  *
  * File: fsInit.c
  *
@@ -209,10 +209,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
       free(FATTable);
       free(DEBuffer);
     return PART_ERR_INVALID;
-  }
-  freeSpaceList[0].in_use=1;
-  // printf("Debuuuuuuuuuuuuuuuuggggggggggg\n");
-  // Copy VCB to g_vcb to keep it in memory
+  } // Containsto keep it in memory
   // memcpy(g_vcb, vcb, sizeof(VCB));
   // *g_vcb = *vcb;
   // printf("This is our global VCB in memory: %ld\n", g_vcb->DE_start);

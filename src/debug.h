@@ -1,3 +1,17 @@
+/**************************************************************
+* Class:  CSC-415-02 Fall 2023
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
+* GitHub Name:
+* Group Name: Byte Builders
+* Project: Basic File System
+*
+* File: debug.h
+*
+* Description: Contains debugging tools to help diagnose issues with the file system
+*
+**************************************************************/
+
 #ifndef _DEBUG_H
 #define _DEBUG_H
 

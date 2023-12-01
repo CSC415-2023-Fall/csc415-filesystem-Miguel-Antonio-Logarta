@@ -1,5 +1,16 @@
-// File to put our test cases or something
-
+/**************************************************************
+* Class:  CSC-415-02 Fall 2023
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
+* GitHub Name:
+* Group Name: Byte Builders
+* Project: Basic File System
+*
+* File: tests.c
+*
+* Description: Implementation for test functions to test code
+*
+**************************************************************/
 // Testing code
 // fdDir* testDir;	
 // testDir = fs_opendir(NULL);

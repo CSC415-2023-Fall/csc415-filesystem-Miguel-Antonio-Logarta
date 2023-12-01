@@ -1,9 +1,9 @@
 /**************************************************************
-* Class:  CSC-415-0#  Fall 2021
-* Names: 
-* Student IDs:
+* Class:  CSC-415-02 Fall 2023
+* Names: Mohammed Deeb, Miguel Antonio Logarta, Abdarrahman Ayyaz, Avitaj Singh Bhangoo
+* Student IDs: 922875899, 923062683, 922859909, 921303783
 * GitHub Name:
-* Group Name:
+* Group Name: Byte Builders
 * Project: Basic File System
 *
 * File: b_io.h
