@@ -173,7 +173,7 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   memset(DEBuffer, '\0', vcb->block_size);
   memcpy(DEBuffer, &initRootDir, sizeof(struct initRootDirectory));
 
-  freeSpaceList = (FAT_block*)calloc(vcb->FAT_length, sizeof(FAT_block));
+  freeSpaceList = (FAT_block*)calloc(numberOfBlocks*sizeof(FAT_block), sizeof(FAT_block));
 
   // Write Root directory
   blocksWritten = LBAwrite(DEBuffer, 1, 154);
@@ -217,26 +217,34 @@ int initFileSystem(uint64_t numberOfBlocks, uint64_t blockSize) {
   // *g_vcb = *vcb;
   // printf("This is our global VCB in memory: %ld\n", g_vcb->DE_start);
 
-  
-  freeSpaceList[0].in_use = 1;
-  int previousFreeBlock= numberOfBlocks-1;
-  int firstBlockFlag = 0;
-  // Initialize FAT blocks
-  for (int i = numberOfBlocks-1; i >=0; i--) {
-    if (freeSpaceList[i].in_use != 1){
-      freeSpaceList[i].in_use =0;
-      freeSpaceList[i].next_lba_block = previousFreeBlock;
-      previousFreeBlock = i;
-    }
-  }
-  firstFreeBlock = findFirstFreeBlock(numberOfBlocks);
-  LBAwrite(freeSpaceList ,vcb->FAT_length, vcb->FAT_start);
+ 
 
+  int nextFreeBlock = numberOfBlocks - 1;  // Will hold the next free block's index
+
+  // Initialize FAT blocks in proper order
+  for (int i = numberOfBlocks - 1; i > 0; i--) {
+      if (freeSpaceList[i].in_use == 0) {
+          freeSpaceList[i].next_lba_block = nextFreeBlock;
+          nextFreeBlock = i;  // Update nextFreeBlock to the current one
+      }
+  }
+
+  firstFreeBlock = nextFreeBlock;  // Set the first free block after initialization
+
+  // Write the entire FAT table to disk
+  int writeStatus = LBAwrite(freeSpaceList, vcb->FAT_length, vcb->FAT_start);
+  if (writeStatus != vcb->FAT_length) {
+      printf("Error writing FAT table to disk\n");
+      // Handle the error appropriately
+  }
+
+  // Free allocated resources
   free(buffer);
   free(FATTable);
   free(DEBuffer);
 
-  return 0;
+return 0;
+
 }
 
 int findFirstFreeBlock(int NumberOfBlocks){
@@ -257,7 +265,7 @@ int findFirstFreeBlock(int NumberOfBlocks){
 }
 
 int readFreeSpaceMap(VCB * vcb, int NumberOfBlocks, int blockSize){
-  freeSpaceList = (FAT_block*)calloc(vcb->FAT_length, sizeof(FAT_block));
+  freeSpaceList = (FAT_block*)calloc(NumberOfBlocks*sizeof(FAT_block), sizeof(FAT_block));
   LBAread(freeSpaceList, vcb->FAT_length, vcb->FAT_start);
   
   //find the firstFreeBlock

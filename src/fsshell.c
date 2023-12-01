@@ -45,10 +45,10 @@
 #define CMDMD_ON	0
 #define CMDRM_ON	0
 #define CMDCP2L_ON	0
-#define CMDCP2FS_ON	0
+#define CMDCP2FS_ON	1
 #define CMDCD_ON	1
 #define CMDPWD_ON	1
-#define CMDTOUCH_ON	0
+#define CMDTOUCH_ON	1
 #define CMDCAT_ON	0
 
 
@@ -724,53 +724,6 @@ void processcommand (char * cmd)
 	}
 
 
-void test() {
-		printf("\n----------------------------------\nTesting...\n----------------------------------\n");
-    char* testFilename = "/testfile.txt";
-    char* writeData = "Hello, File System!";
-    char readData[100]; // Buffer to read data into
-
-    // Open the file for writing (and create it if it doesn't exist)
-		printf("Opening file (create and write)...\n");
-    b_io_fd fd = b_open(testFilename, O_WRONLY | O_CREAT);
-    if (fd < 0) {
-        printf("Error opening file for writing.\n");
-        return;
-    }
-    // Write data to the file
-		printf("Writing to file...\n");
-    int bytesWritten = b_write(fd, writeData, strlen(writeData));
-    if (bytesWritten < 0) {
-        printf("Error writing to file.\n");
-        b_close(fd);
-        return;
-    }
-
-    // Open the file for reading
-		printf("Opening file (read)...\n");
-    fd = b_open(testFilename, O_RDONLY);
-    if (fd < 0) {
-        printf("Error opening file for reading.\n");
-        return;
-    }
-
-    // Read data from the file
-		printf("Reading file...\n");
-    int bytesRead = b_read(fd, readData, sizeof(readData) - 1); // Leave space for null terminator
-    if (bytesRead < 0) {
-        printf("Error reading from file.\n");
-        //b_close(fd);
-        return;
-    }
-
-    // Null terminate the string read
-    //readData[bytesRead] = '\0';
-
-  
-
-    // Output the read data
-    printf("Data read from file: %s\n", readData);
-}
 
 int main (int argc, char * argv[])
 	{
@@ -887,8 +840,6 @@ int main (int argc, char * argv[])
 	// Set cwd to root
 	int cwdReturn = fs_setcwd("/");
 
-	//testing 
-		test();
 
 	if (cwdReturn != 0) {
 		printf("Unable to find root directory!\n");
